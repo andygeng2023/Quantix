@@ -2,6 +2,13 @@
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, max-age=0');
 
+$symbolsRaw=trim($_GET['symbols']??'');
+if($symbolsRaw!==''){
+  $symbols=array_values(array_unique(array_filter(array_map('strtoupper',preg_split('/[,\s]+/',$symbolsRaw)),fn($s)=>preg_match('/^[A-Z0-9.^_-]{1,15}$/',$s))));
+  $symbols=array_slice($symbols,0,25);$quotes=[];
+  foreach($symbols as $symbol){$url='https://query1.finance.yahoo.com/v8/finance/chart/'.rawurlencode($symbol).'?range=1d&interval=1m&events=div%2Csplits';$ctx=stream_context_create(['http'=>['timeout'=>4,'ignore_errors'=>true,'header'=>"User-Agent: Quantix/1.0\r\nAccept: application/json\r\n"]]);$raw=@file_get_contents($url,false,$ctx);$j=$raw?json_decode($raw,true):null;$r=$j['chart']['result'][0]??null;if(!$r)continue;$meta=$r['meta']??[];$ts=$r['timestamp']??[];$q=$r['indicators']['quote'][0]??[];$i=count($ts)-1;if($i<0)continue;$price=$q['close'][$i]??$meta['regularMarketPrice']??null;if($price===null)continue;$prev=$meta['previousClose']??$meta['chartPreviousClose']??null;$quotes[$symbol]=['symbol'=>$symbol,'price'=>(float)$price,'previous'=>$prev!==null?(float)$prev:null,'change'=>$prev!==null?(float)$price-(float)$prev:null,'change_pct'=>$prev?(float)(($price/$prev-1)*100):null,'timestamp'=>gmdate('c',$ts[$i]??time())];}
+  echo json_encode(['quotes'=>$quotes,'updated_at'=>gmdate('c')]);exit;
+}
 $symbol=strtoupper(trim($_GET['symbol']??''));
 if(!preg_match('/^[A-Z0-9.^_-]{1,15}$/',$symbol)){
   http_response_code(400);
