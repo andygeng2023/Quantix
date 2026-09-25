@@ -78,6 +78,30 @@ def metrics(prices, benchmark):
         'forecast_annualized_trend':safe_float(t20),'forecast_path_20d':p20
     }
 
+def backtest_forecast(s, horizon, lookback=60, step=5, max_origins=20):
+    s=pd.Series(s,dtype=float).dropna().reset_index(drop=True)
+    if len(s)<lookback+horizon+5: return {}
+    origins=list(range(lookback, len(s)-horizon+1, step))[-max_origins:]
+    errors=[]; sq_errors=[]; signed=[]; direction=[]; covered=[]
+    for origin in origins:
+        train=s.iloc[:origin]; n=min(lookback,len(train))
+        y=np.log(train.tail(n).values); x=np.arange(n,dtype=float)
+        slope,intercept=np.polyfit(x,y,1)
+        resid=y-(intercept+slope*x); sigma=float(np.std(resid,ddof=1)) if n>2 else 0.0
+        pred=float(np.exp(intercept+slope*(n-1+horizon)))
+        band=float(1.96*sigma*np.sqrt(1+horizon/n))
+        lo=float(np.exp(intercept+slope*(n-1+horizon)-band)); hi=float(np.exp(intercept+slope*(n-1+horizon)+band))
+        actual=float(s.iloc[origin+horizon-1]); base=float(s.iloc[origin-1])
+        errors.append(abs(pred-actual)); sq_errors.append((pred-actual)**2); signed.append(pred-actual)
+        direction.append(int((pred-base)*(actual-base)>=0)); covered.append(int(lo<=actual<=hi))
+    if not errors: return {}
+    return {'horizon':horizon,'tests':len(errors),'mae':safe_float(np.mean(errors)),
+            'rmse':safe_float(np.sqrt(np.mean(sq_errors))),'mean_error':safe_float(np.mean(signed)),
+            'directional_accuracy':safe_float(np.mean(direction)),'interval_coverage':safe_float(np.mean(covered))}
+
+def backtest_summary(s):
+    return {f'{h}d':backtest_forecast(s,h) for h in (5,20)}
+
 all_stocks=[]; all_prices=[]; series={}
 for sym in symbols:
     t=yf.Ticker(sym)
@@ -105,7 +129,8 @@ for sym in symbols:
         bm=pd.concat([r,benchmark],axis=1).dropna()
         r=bm.iloc[:,0]; bm=bm.iloc[:,1]
     analyses[sym]=metrics(df,bm)
-    print('analysis',sym,analyses[sym].get('trend'),analyses[sym].get('forecast_20d'))
+    analyses[sym]['backtest']=backtest_summary(series[sym])
+    print('analysis',sym,analyses[sym].get('trend'),analyses[sym].get('forecast_20d'),analyses[sym].get('backtest',{}))
 
 cache=Path('web/data/market.json');cache.parent.mkdir(parents=True,exist_ok=True)
 cache.write_text(json.dumps({'generated_at':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z'),'stocks':all_stocks,'prices':all_prices,'analysis':analyses},separators=(',',':')))
