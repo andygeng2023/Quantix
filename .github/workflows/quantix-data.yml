@@ -3,13 +3,13 @@ run-name: Quantix market refresh
 on:
   workflow_dispatch:
   schedule:
-    - cron: '7,22,37,52 * * * *'
+    - cron: '*/5 * * * *'
 permissions:
   contents: read
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     concurrency:
       group: quantix-data-refresh
       cancel-in-progress: true
