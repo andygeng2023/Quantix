@@ -1,0 +1,1 @@
+<?php require __DIR__.'/partials/header.php';?><section class="section-head"><div><span class="eyebrow">CONFIGURATION</span><h1>Settings</h1></div></section><div class="card"><h3>Interface</h3><p>Quantix uses a responsive dark/light-ready CSS system. Theme persistence can be added without changing the PHP data layer.</p></div><?php require __DIR__.'/partials/footer.php'; ?>

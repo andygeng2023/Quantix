@@ -1,1 +1,1 @@
-</main></div><nav class="mobile-nav"><a href="index.php">⌂<span>Home</span></a><a href="watchlist.php">☆<span>Stocks</span></a><a href="screener.php">⌕<span>Screen</span></a><a href="analytics.php">◌<span>Analytics</span></a><a href="settings.php">⚙<span>Settings</span></a></nav><script src="assets/js/app.js"></script></body></html>
+</div></main><nav class="mobile-nav"><a href="index.php">Home</a><a href="stock.php?symbol=AAPL">Stock</a><a href="screener.php">Scan</a><a href="watchlist.php">Watchlist</a></nav></body></html>

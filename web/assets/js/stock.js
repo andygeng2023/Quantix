@@ -1,0 +1,1 @@
+const el=document.getElementById('priceChart');if(el&&window.QUANTIX_PRICE){new Chart(el,{type:'line',data:{labels:QUANTIX_PRICE.map(x=>x.ts),datasets:[{label:'Close',data:QUANTIX_PRICE.map(x=>Number(x.close)),tension:.2,pointRadius:0,borderWidth:2}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{display:false}}}});}
