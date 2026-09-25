@@ -5,7 +5,7 @@ on:
   schedule:
     - cron: '17 * * * *'
 permissions:
-  contents: read
+  contents: write
 jobs:
   refresh:
     runs-on: ubuntu-latest
@@ -43,14 +43,26 @@ jobs:
           assert d.get('generated_at'), "Missing generated_at"
           print(f"Validated {len(stocks)} stocks, {len(analysis)} analyses and {len(prices)} price rows")
           PY
-      - name: Deploy cache to InfinityFree
+      - name: Persist validated cache in repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/data/market.json
+          if git diff --cached --quiet; then
+            echo "Cache unchanged"
+          else
+            git commit -m "Refresh market data [skip ci]"
+            git push origin HEAD:main
+          fi
+      - name: Deploy complete web application
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.INFINITYFREE_FTP_SERVER }}
           username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
           password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
-          server-dir: ${{ secrets.INFINITYFREE_FTP_SERVER_DIR }}data/
+          server-dir: ${{ secrets.INFINITYFREE_FTP_SERVER_DIR }}
           protocol: ftp
-          local-dir: ./web/data/
+          local-dir: ./web/
           exclude: |
             **/.DS_Store
+            **/config/database.php
