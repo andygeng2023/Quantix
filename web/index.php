@@ -56,9 +56,9 @@ arsort($research); $research=array_slice($research,0,6,true);
 </div>
 
 <section class="section-head"><div><span class="eyebrow">MARKET BOARD</span><h2>Largest tracked symbols</h2></div><a href="screener.php">Open screener →</a></section>
-<div class="table-card"><table><thead><tr><th>Symbol</th><th>Price</th><th>Trend</th><th>20D return</th><th>Volatility</th><th>RSI</th></tr></thead><tbody>
+<div class="table-card" id="marketBoard" data-symbols="<?=e(implode(',',array_map(fn($x)=>$x['symbol']??'',array_slice($rows,0,14))))?>"><table><thead><tr><th>Symbol</th><th>Price</th><th>Trend</th><th>20D return</th><th>Volatility</th><th>RSI</th></tr></thead><tbody>
 <?php foreach(array_slice($rows,0,14) as $r): $m=$r['metrics']; ?>
-<tr><td><a href="stock.php?symbol=<?=e($r['symbol'])?>"><b><?=e($r['symbol'])?></b></a></td><td><?=quantix_num($r['close']??null)?></td><td><?=e($m['trend']??'—')?></td><td class="<?=quantix_change_class($m['return_20d']??null)?>"><?=quantix_pct($m['return_20d']??null)?></td><td><?=quantix_pct($m['annualized_volatility']??null)?></td><td><?=quantix_num($m['rsi14']??null,1)?></td></tr>
+<tr><td><a href="stock.php?symbol=<?=e($r['symbol'])?>"><b><?=e($r['symbol'])?></b></a></td><td class="live-board-price" data-symbol="<?=e($r['symbol'])?>"><?=quantix_num($r['close']??null)?></td><td><?=e($m['trend']??'—')?></td><td class="<?=quantix_change_class($m['return_20d']??null)?>"><?=quantix_pct($m['return_20d']??null)?></td><td><?=quantix_pct($m['annualized_volatility']??null)?></td><td><?=quantix_num($m['rsi14']??null,1)?></td></tr>
 <?php endforeach; if(!$rows): ?><tr><td colspan="6">No market cache is available yet.</td></tr><?php endif; ?>
 </tbody></table></div>
 <div class="notice">Full analytics are refreshed by the scheduled data pipeline. Individual stock pages also poll a live quote separately when available.</div>
