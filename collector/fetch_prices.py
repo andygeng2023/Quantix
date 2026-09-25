@@ -123,7 +123,7 @@ except Exception as exc:
 
 print(f'Fetching {len(symbols)} symbols in efficient batches')
 price_frames={}
-BATCH_SIZE=100
+BATCH_SIZE=50
 for start in range(0,len(symbols),BATCH_SIZE):
     batch=symbols[start:start+BATCH_SIZE]
     print(f'Batch {start+1}-{start+len(batch)} / {len(symbols)}')
@@ -136,7 +136,17 @@ for start in range(0,len(symbols),BATCH_SIZE):
                 price_frames[sym]=pd.DataFrame()
     except Exception as exc:
         print('Batch failed:',exc)
-        for sym in batch: price_frames[sym]=pd.DataFrame()
+        # Retry the failed batch once with a smaller request to avoid a total-cache failure.
+        if len(batch)>20:
+            try:
+                retry=yf.download(' '.join(batch),period='1y',interval='1d',auto_adjust=False,group_by='ticker',threads=False,progress=False,timeout=45)
+                for sym in batch:
+                    try: price_frames[sym]=retry[sym].dropna(how='all').reset_index()
+                    except Exception: price_frames[sym]=pd.DataFrame()
+            except Exception as retry_exc:
+                print('Retry failed:',retry_exc)
+        for sym in batch:
+            price_frames.setdefault(sym,pd.DataFrame())
 for sym in symbols:
     info=fin_by_symbol.get(sym,{})
     stocks=[{'symbol':sym,'name':None if pd.isna(info.get('Name')) else info.get('Name'),
@@ -165,8 +175,8 @@ for sym in symbols:
 aligned=pd.DataFrame(series).dropna()
 benchmark=aligned.pct_change().dropna().mean(axis=1) if not aligned.empty else None
 analyses={}
-for sym in symbols:
-    df=pd.DataFrame({'close':series[sym]}).dropna()
+for sym, ser in series.items():
+    df=pd.DataFrame({'close':ser}).dropna()
     r=df['close'].pct_change().dropna()
     bm=None
     if benchmark is not None:
@@ -174,6 +184,7 @@ for sym in symbols:
         r=bm.iloc[:,0]; bm=bm.iloc[:,1]
     analyses[sym]=metrics(df,bm)
     analyses[sym]['backtest']=backtest_summary(series[sym])
+    analyses[sym]['data_quality']={'observations':int(len(series[sym])),'freshness':str(all_prices[-1]['ts']) if all_prices and all_prices[-1]['symbol']==sym else None}
     print('analysis',sym,analyses[sym].get('trend'),analyses[sym].get('forecast_20d'),analyses[sym].get('backtest',{}))
 
 cache=Path('web/data/market.json');cache.parent.mkdir(parents=True,exist_ok=True)
