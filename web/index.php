@@ -1,6 +1,9 @@
 <?php
 require __DIR__.'/partials/header.php';
 $cache=json_decode(@file_get_contents(__DIR__.'/data/market.json'),true)?:[];$stocks=$cache['stocks']??[];$analysis=$cache['analysis']??[];$generated=$cache['generated_at']??null;
+if(!$stocks){try{$stocks=q('SELECT * FROM stocks ORDER BY market_cap DESC LIMIT 1000')->fetchAll();}catch(Throwable $x){}}
+if(!$analysis){try{$aa=q('SELECT * FROM stock_analysis')->fetchAll();foreach($aa as $a){$analysis[$a['symbol']]=is_string($a['metrics']??null)?(json_decode($a['metrics'],true)?:[]):$a;}}catch(Throwable $x){}}
+if($stocks)$generated=$generated?:date('c');
 $latest=[];foreach(($cache['prices']??[]) as $p){$k=$p['symbol'];if(!isset($latest[$k])||$p['ts']>$latest[$k]['ts'])$latest[$k]=$p;}
 $rows=[];foreach($stocks as $s)$rows[]=array_merge($s,['close'=>$latest[$s['symbol']]['close']??null,'ts'=>$latest[$s['symbol']]['ts']??null]);usort($rows,fn($a,$b)=>($b['market_cap']??0)<=>($a['market_cap']??0));
 $bull=$bear=$mixed=0;foreach($analysis as $m){$t=$m['trend']??'mixed';if($t==='bullish')$bull++;elseif($t==='bearish')$bear++;else $mixed++;}
