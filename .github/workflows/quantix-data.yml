@@ -3,7 +3,7 @@ run-name: Quantix market refresh
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '17 * * * *'
 permissions:
   contents: read
 jobs:
@@ -52,3 +52,5 @@ jobs:
           server-dir: ${{ secrets.INFINITYFREE_FTP_SERVER_DIR }}data/
           protocol: ftp
           local-dir: ./web/data/
+          exclude: |
+            **/.DS_Store
