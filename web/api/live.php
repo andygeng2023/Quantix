@@ -1,61 +1,7 @@
 <?php
-header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store, max-age=0');
-
-$symbolsRaw=trim($_GET['symbols']??'');
-if($symbolsRaw!==''){
-  $symbols=array_values(array_unique(array_filter(array_map('strtoupper',preg_split('/[,\s]+/',$symbolsRaw)),fn($s)=>preg_match('/^[A-Z0-9.^_-]{1,15}$/',$s))));
-  $symbols=array_slice($symbols,0,25);$quotes=[];
-  foreach($symbols as $symbol){$url='https://query1.finance.yahoo.com/v8/finance/chart/'.rawurlencode($symbol).'?range=1d&interval=1m&events=div%2Csplits';$ctx=stream_context_create(['http'=>['timeout'=>4,'ignore_errors'=>true,'header'=>"User-Agent: Quantix/1.0\r\nAccept: application/json\r\n"]]);$raw=@file_get_contents($url,false,$ctx);$j=$raw?json_decode($raw,true):null;$r=$j['chart']['result'][0]??null;if(!$r)continue;$meta=$r['meta']??[];$ts=$r['timestamp']??[];$q=$r['indicators']['quote'][0]??[];$i=count($ts)-1;if($i<0)continue;$price=$q['close'][$i]??$meta['regularMarketPrice']??null;if($price===null)continue;$prev=$meta['previousClose']??$meta['chartPreviousClose']??null;$quotes[$symbol]=['symbol'=>$symbol,'price'=>(float)$price,'previous'=>$prev!==null?(float)$prev:null,'change'=>$prev!==null?(float)$price-(float)$prev:null,'change_pct'=>$prev?(float)(($price/$prev-1)*100):null,'timestamp'=>gmdate('c',$ts[$i]??time())];}
-  echo json_encode(['quotes'=>$quotes,'updated_at'=>gmdate('c')]);exit;
-}
-$symbol=strtoupper(trim($_GET['symbol']??''));
-if(!preg_match('/^[A-Z0-9.^_-]{1,15}$/',$symbol)){
-  http_response_code(400);
-  echo json_encode(['error'=>'Invalid symbol']);
-  exit;
-}
-
-$url='https://query1.finance.yahoo.com/v8/finance/chart/'.rawurlencode($symbol).'?range=1d&interval=1m&events=div%2Csplits';
-$ctx=stream_context_create([
-  'http'=>[
-    'timeout'=>5,
-    'ignore_errors'=>true,
-    'header'=>"User-Agent: Quantix/1.0\r\nAccept: application/json\r\n"
-  ]
-]);
-$raw=@file_get_contents($url,false,$ctx);
-$j=$raw?json_decode($raw,true):null;
-$r=$j['chart']['result'][0]??null;
-if(!$r){
-  http_response_code(502);
-  echo json_encode(['error'=>'Live quote unavailable']);
-  exit;
-}
-
-$meta=$r['meta']??[];
-$q=$r['indicators']['quote'][0]??[];
-$last=null;$lastTs=null;
-$closes=$q['close']??[];$ts=$r['timestamp']??[];
-for($i=count($closes)-1;$i>=0;$i--){
-  if($closes[$i]!==null){$last=(float)$closes[$i];$lastTs=isset($ts[$i])?gmdate('c',(int)$ts[$i]):gmdate('c');break;}
-}
-$prev=null;
-for($i=count($closes)-1;$i>=0;$i--){
-  if($closes[$i]!==null && $i<(count($closes)-1)){
-    $prev=(float)$closes[$i];break;
-  }
-}
-$change=($last!==null&&$prev!==null)?$last-$prev:null;
-$changePct=($last!==null&&$prev)?$change/$prev:null;
-
-echo json_encode([
-  'symbol'=>$symbol,
-  'name'=>$meta['longName']??$meta['shortName']??$symbol,
-  'price'=>$last,
-  'previous'=>$prev,
-  'change'=>$change,
-  'change_pct'=>$changePct,
-  'timestamp'=>$lastTs,
-  'market_time'=>isset($meta['regularMarketTime'])?gmdate('c',(int)$meta['regularMarketTime']):null
-],JSON_UNESCAPED_SLASHES);
+header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store, max-age=0');
+function json_error(int $code,string $message):void{http_response_code($code);echo json_encode(['error'=>$message],JSON_UNESCAPED_SLASHES);exit;}
+function live_json(string $url):?array{if(function_exists('curl_init')){$ch=curl_init($url);curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>true,CURLOPT_CONNECTTIMEOUT=>3,CURLOPT_TIMEOUT=>5,CURLOPT_HTTPHEADER=>['User-Agent: Quantix/1.1','Accept: application/json']]);$raw=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);curl_close($ch);if($status>=400||!is_string($raw))return null;}else{$ctx=stream_context_create(['http'=>['timeout'=>5,'ignore_errors'=>true,'header'=>"User-Agent: Quantix/1.1\r\nAccept: application/json\r\n"]]);$raw=@file_get_contents($url,false,$ctx);if(!is_string($raw)||$raw==='')return null;}$j=json_decode($raw,true);return is_array($j)?$j:null;}
+function live_quote(string $symbol):?array{$url='https://query1.finance.yahoo.com/v8/finance/chart/'.rawurlencode($symbol).'?range=1d&interval=1m&events=div%2Csplits';$j=live_json($url);$r=$j['chart']['result'][0]??null;if(!$r)return null;$meta=$r['meta']??[];$q=$r['indicators']['quote'][0]??[];$ts=$r['timestamp']??[];$closes=$q['close']??[];$last=null;$lastTs=null;for($i=count($closes)-1;$i>=0;$i--)if($closes[$i]!==null){$last=(float)$closes[$i];$lastTs=isset($ts[$i])?gmdate('c',(int)$ts[$i]):gmdate('c');break;}if($last===null)return null;$prev=$meta['previousClose']??$meta['chartPreviousClose']??null;$prev=is_numeric($prev)?(float)$prev:null;$change=$prev!==null?$last-$prev:null;return ['symbol'=>$symbol,'name'=>$meta['longName']??$meta['shortName']??$symbol,'price'=>$last,'previous'=>$prev,'change'=>$change,'change_pct'=>($prev!==null&&$prev!=0)?$change/$prev:null,'timestamp'=>$lastTs,'market_time'=>isset($meta['regularMarketTime'])?gmdate('c',(int)$meta['regularMarketTime']):null];}
+$symbolsRaw=trim($_GET['symbols']??'');if($symbolsRaw!==''){$symbols=array_values(array_unique(array_filter(array_map('strtoupper',preg_split('/[,\s]+/',$symbolsRaw)),fn($s)=>preg_match('/^[A-Z0-9.^_-]{1,15}$/',$s))));$symbols=array_slice($symbols,0,12);$quotes=[];foreach($symbols as $symbol){$quote=live_quote($symbol);if($quote)$quotes[$symbol]=$quote;}echo json_encode(['quotes'=>$quotes,'updated_at'=>gmdate('c')],JSON_UNESCAPED_SLASHES);exit;}
+$symbol=strtoupper(trim($_GET['symbol']??''));if(!preg_match('/^[A-Z0-9.^_-]{1,15}$/',$symbol))json_error(400,'Invalid symbol');$quote=live_quote($symbol);if(!$quote)json_error(502,'Live quote unavailable');echo json_encode($quote,JSON_UNESCAPED_SLASHES);
