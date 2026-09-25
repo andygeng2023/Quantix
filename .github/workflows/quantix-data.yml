@@ -27,3 +27,13 @@ jobs:
           git add web/data/market.json
           git diff --cached --quiet || git commit -m "Update Quantix market cache"
           git push
+
+      - name: Deploy market cache directly to InfinityFree
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.INFINITYFREE_FTP_SERVER }}
+          username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
+          password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+          server-dir: ${{ secrets.INFINITYFREE_FTP_SERVER_DIR }}data/
+          protocol: ftp
+          local-dir: ./web/data/
