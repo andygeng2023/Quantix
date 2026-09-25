@@ -3,7 +3,8 @@ from pathlib import Path
 import requests
 import yfinance as yf
 
-symbols=[x.strip().upper() for x in os.getenv('QUANTIX_SYMBOLS','AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA').split(',') if x.strip()]
+raw_symbols=os.getenv('QUANTIX_SYMBOLS','').strip()
+symbols=[x.strip().upper() for x in (raw_symbols or 'AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA').split(',') if x.strip()]
 out=Path(os.getenv('QUANTIX_INGEST_DIR','../data/ingest'));out.mkdir(parents=True,exist_ok=True)
 ingest_url=os.getenv('QUANTIX_INGEST_URL','').strip()
 ingest_token=os.getenv('QUANTIX_INGEST_TOKEN','').strip()
