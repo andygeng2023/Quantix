@@ -43,7 +43,12 @@ def metrics(prices, benchmark):
     sma20=s.rolling(20).mean().iloc[-1]
     sma50=s.rolling(50).mean().iloc[-1] if len(s)>=50 else np.nan
     mid20=s.rolling(20).mean(); std20=s.rolling(20).std(ddof=1); upper20=mid20+2*std20; lower20=mid20-2*std20
-    tr=pd.concat([prices['high'].astype(float)-prices['low'].astype(float),(prices['high'].astype(float)-prices['close'].astype(float).shift()).abs(),(prices['low'].astype(float)-prices['close'].astype(float).shift()).abs()],axis=1).max(axis=1)
+    if 'high' in prices.columns and 'low' in prices.columns:
+        high=prices['high'].astype(float); low=prices['low'].astype(float); prev_close=prices['close'].astype(float).shift()
+        tr=pd.concat([high-low,(high-prev_close).abs(),(low-prev_close).abs()],axis=1).max(axis=1)
+    else:
+        # Close-only fallback: approximate true range with absolute close changes.
+        tr=s.diff().abs()
     atr14=tr.rolling(14).mean().iloc[-1] if len(tr)>=14 else np.nan
     k14=100*(s-s.rolling(14).min())/(s.rolling(14).max()-s.rolling(14).min()).replace(0,np.nan)
     vol20=ret.tail(20).std(ddof=1)*np.sqrt(252) if len(ret)>=20 else np.nan
@@ -200,7 +205,15 @@ aligned=pd.DataFrame(series).dropna()
 benchmark=aligned.pct_change().dropna().mean(axis=1) if not aligned.empty else None
 analyses={}
 for sym, ser in series.items():
-    df=pd.DataFrame({'close':ser}).dropna()
+    h=price_frames.get(sym,pd.DataFrame())
+    if h.empty or 'Close' not in h.columns:
+        df=pd.DataFrame({'close':ser}).dropna()
+    else:
+        df=pd.DataFrame({
+            'close':pd.to_numeric(h['Close'],errors='coerce'),
+            'high':pd.to_numeric(h.get('High'),errors='coerce'),
+            'low':pd.to_numeric(h.get('Low'),errors='coerce')
+        }).dropna(subset=['close']).reset_index(drop=True)
     r=df['close'].pct_change().dropna()
     bm=None
     if benchmark is not None:
