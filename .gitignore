@@ -1,0 +1,21 @@
+# Private database credentials
+web/config/database.php
+
+# Python environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Environment files
+.env
+.env.*
+
+# Generated market-data cache
+data/ingest/*.json
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
