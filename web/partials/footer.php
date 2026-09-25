@@ -1,1 +1,3 @@
-</div></main><nav class="mobile-nav fixed-nav" aria-label="Primary navigation"><a class="<?= $page==='index.php'?'active':'' ?>" href="index.php"><b>⌂</b><span>Home</span></a><a class="<?= in_array($page,['screener.php','stock.php','compare.php'])?'active':'' ?>" href="screener.php"><b>⌕</b><span>Explore</span></a><a class="<?= $page==='analytics.php'?'active':'' ?>" href="analytics.php"><b>◈</b><span>Research</span></a><a class="<?= $page==='watchlist.php'?'active':'' ?>" href="watchlist.php"><b>☆</b><span>Saved</span></a><a class="<?= $page==='settings.php'?'active':'' ?>" href="settings.php"><b>⚙</b><span>Settings</span></a></nav></body></html>
+</div></main>
+<footer class="site-footer"><span>Quantix · quantitative research workspace</span><span>Data and model outputs are informational.</span></footer>
+</body></html>
