@@ -160,7 +160,10 @@ for start in range(0,len(symbols),BATCH_SIZE):
         frame=yf.download(batch,period='1y',interval='1d',auto_adjust=False,group_by='ticker',threads=False,progress=False,timeout=30)
         for sym in batch:
             try:
-                price_frames[sym]=frame[sym].dropna(how='all').reset_index()
+                if len(batch)==1:
+                    price_frames[sym]=frame.dropna(how='all').reset_index()
+                else:
+                    price_frames[sym]=frame[sym].dropna(how='all').reset_index()
             except Exception:
                 price_frames[sym]=pd.DataFrame()
     except Exception as exc:
@@ -170,8 +173,13 @@ for start in range(0,len(symbols),BATCH_SIZE):
             try:
                 retry=yf.download(' '.join(batch),period='1y',interval='1d',auto_adjust=False,group_by='ticker',threads=False,progress=False,timeout=45)
                 for sym in batch:
-                    try: price_frames[sym]=retry[sym].dropna(how='all').reset_index()
-                    except Exception: price_frames[sym]=pd.DataFrame()
+                    try:
+                        if len(batch)==1:
+                            price_frames[sym]=retry.dropna(how='all').reset_index()
+                        else:
+                            price_frames[sym]=retry[sym].dropna(how='all').reset_index()
+                    except Exception:
+                        price_frames[sym]=pd.DataFrame()
             except Exception as retry_exc:
                 print('Retry failed:',retry_exc)
         for sym in batch:
