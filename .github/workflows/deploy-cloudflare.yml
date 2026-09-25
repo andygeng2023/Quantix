@@ -16,11 +16,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: services/quantix-worker/package-lock.json
       - name: Install dependencies
         working-directory: services/quantix-worker
-        run: npm ci
+        run: npm install
       - name: Deploy Worker
         working-directory: services/quantix-worker
         run: npx wrangler deploy
