@@ -2,7 +2,7 @@ name: Quantix Data Collector
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '2-59/5 * * * *'
 permissions:
   contents: write
 jobs:
@@ -21,8 +21,6 @@ jobs:
       - name: Fetch yfinance data
         env:
           QUANTIX_SYMBOLS: ${{ vars.QUANTIX_SYMBOLS }}
-          QUANTIX_INGEST_URL: ${{ secrets.QUANTIX_INGEST_URL }}
-          QUANTIX_INGEST_TOKEN: ${{ secrets.QUANTIX_INGEST_TOKEN }}
         run: python collector/fetch_prices.py
       - name: Verify generated cache
         run: python - <<'PY'
