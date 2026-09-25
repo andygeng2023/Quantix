@@ -114,29 +114,28 @@ def metrics(prices, benchmark):
         'macd_signal':safe_float(signal.iloc[-1]),'trend':trend,'bollinger_upper':safe_float(upper20.iloc[-1]),'bollinger_lower':safe_float(lower20.iloc[-1]),'atr14':safe_float(atr14),'stochastic14':safe_float(k14.iloc[-1]),'volatility_regime':vol_regime,
         'forecast_5d':safe_float(f5),'forecast_5d_low':safe_float(l5),'forecast_5d_high':safe_float(h5),
         'forecast_20d':safe_float(f20),'forecast_20d_low':safe_float(l20),'forecast_20d_high':safe_float(h20),
-        'forecast_annualized_trend':safe_float(t20),'forecast_path_20d':p20
+        'forecast_annualized_trend':safe_float(t20),'forecast_path_20d':p20,'model_confidence':safe_float(max(0,min(1,1-((h20-l20)/max(abs(f20),1e-9))))),'model_version':'ensemble-logtrend-v2'
     }
 
 def backtest_forecast(s, horizon, lookback=60, step=5, max_origins=20):
     s=pd.Series(s,dtype=float).dropna().reset_index(drop=True)
-    if len(s)<lookback+horizon+5: return {}
-    origins=list(range(lookback, len(s)-horizon+1, step))[-max_origins:]
-    errors=[]; sq_errors=[]; signed=[]; direction=[]; covered=[]
+    if len(s)<lookback+horizon+5:return {}
+    origins=list(range(lookback,len(s)-horizon+1,step))[-max_origins:]
+    errors=[];sq_errors=[];signed=[];direction=[];covered=[]
     for origin in origins:
-        train=s.iloc[:origin]; n=min(lookback,len(train))
-        y=np.log(train.tail(n).values); x=np.arange(n,dtype=float)
-        slope,intercept=np.polyfit(x,y,1)
-        resid=y-(intercept+slope*x); sigma=float(np.std(resid,ddof=1)) if n>2 else 0.0
-        pred=float(np.exp(intercept+slope*(n-1+horizon)))
-        band=float(1.96*sigma*np.sqrt(1+horizon/n))
-        lo=float(np.exp(intercept+slope*(n-1+horizon)-band)); hi=float(np.exp(intercept+slope*(n-1+horizon)+band))
-        actual=float(s.iloc[origin+horizon-1]); base=float(s.iloc[origin-1])
-        errors.append(abs(pred-actual)); sq_errors.append((pred-actual)**2); signed.append(pred-actual)
-        direction.append(int((pred-base)*(actual-base)>=0)); covered.append(int(lo<=actual<=hi))
-    if not errors: return {}
-    return {'horizon':horizon,'tests':len(errors),'mae':safe_float(np.mean(errors)),
-            'rmse':safe_float(np.sqrt(np.mean(sq_errors))),'mean_error':safe_float(np.mean(signed)),
-            'directional_accuracy':safe_float(np.mean(direction)),'interval_coverage':safe_float(np.mean(covered))}
+        train=s.iloc[:origin];candidates=[]
+        for window in (20,60):
+            n=min(window,len(train));y=np.log(train.tail(n).values);x=np.arange(n,dtype=float)
+            slope,intercept=np.polyfit(x,y,1);resid=y-(intercept+slope*x);sigma=max(float(np.std(resid,ddof=1)) if n>2 else 0.0,1e-6)
+            pred=float(np.exp(intercept+slope*(n-1+horizon)));candidates.append((pred,slope,sigma,n))
+        weights=np.array([1/(z[2]**2) for z in candidates]);weights/=weights.sum()
+        pred=float(sum(w*z[0] for w,z in zip(weights,candidates)))
+        sigma=float(np.sqrt(sum(w*(z[2]**2+(z[0]-pred)**2)/(1+horizon/z[3]) for w,z in zip(weights,candidates))))
+        band=1.96*sigma*np.sqrt(1+horizon/60);lo=float(np.exp(np.log(pred)-band));hi=float(np.exp(np.log(pred)+band))
+        actual=float(s.iloc[origin+horizon-1]);base=float(s.iloc[origin-1])
+        errors.append(abs(pred-actual));sq_errors.append((pred-actual)**2);signed.append(pred-actual);direction.append(int((pred-base)*(actual-base)>=0));covered.append(int(lo<=actual<=hi))
+    if not errors:return {}
+    return {'horizon':horizon,'tests':len(errors),'mae':safe_float(np.mean(errors)),'rmse':safe_float(np.sqrt(np.mean(sq_errors))),'mean_error':safe_float(np.mean(signed)),'directional_accuracy':safe_float(np.mean(direction)),'interval_coverage':safe_float(np.mean(covered))}
 
 def backtest_summary(s):
     return {f'{h}d':backtest_forecast(s,h) for h in (5,20)}
