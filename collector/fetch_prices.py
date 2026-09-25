@@ -8,6 +8,8 @@ symbols=[x.strip().upper() for x in (raw_symbols or 'AAPL,MSFT,NVDA,AMZN,GOOGL,M
 out=Path(os.getenv('QUANTIX_INGEST_DIR','../data/ingest'));out.mkdir(parents=True,exist_ok=True)
 ingest_url=os.getenv('QUANTIX_INGEST_URL','').strip()
 ingest_token=os.getenv('QUANTIX_INGEST_TOKEN','').strip()
+all_stocks=[]
+all_prices=[]
 
 for sym in symbols:
     t=yf.Ticker(sym)
@@ -19,6 +21,8 @@ for sym in symbols:
     for idx,row in h.iterrows():
         prices.append({'symbol':sym,'ts':idx.to_pydatetime().strftime('%Y-%m-%d %H:%M:%S'),'open':None if row.Open!=row.Open else float(row.Open),'high':None if row.High!=row.High else float(row.High),'low':None if row.Low!=row.Low else float(row.Low),'close':None if row.Close!=row.Close else float(row.Close),'volume':None if row.Volume!=row.Volume else int(row.Volume)})
     payload={'generated_at':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z'),'stocks':stocks,'prices':prices}
+    all_stocks.extend(stocks)
+    all_prices.extend(prices)
     if ingest_url and ingest_token:
         last_error=None
         for attempt in range(1,4):
@@ -48,3 +52,8 @@ for sym in symbols:
         path=out/f'quantix-{sym}-{dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H%M%S")}.json'
         path.write_text(json.dumps(payload,separators=(',',':')))
         print(path)
+
+cache=Path('web/data/market.json')
+cache.parent.mkdir(parents=True,exist_ok=True)
+cache.write_text(json.dumps({'generated_at':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z'),'stocks':all_stocks,'prices':all_prices},separators=(',',':')))
+print(f'Wrote static market cache: {cache} ({len(all_stocks)} stocks, {len(all_prices)} prices)')
