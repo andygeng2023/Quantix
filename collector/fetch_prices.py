@@ -5,7 +5,8 @@ import pandas as pd
 import yfinance as yf
 
 raw_symbols=os.getenv('QUANTIX_SYMBOLS','').strip()
-symbols=[x.strip().upper() for x in (raw_symbols or 'AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA').split(',') if x.strip()]
+DEFAULT_UNIVERSE='AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,AVGO,ORCL,CRM,ADBE,AMD,INTC,QCOM,TXN,MU,AMAT,ASML,CSCO,IBM,NOW,PANW,PLTR,SNOW,NET,CRWD,UBER,ABNB,SHOP,SPOT,NFLX,DIS,CMCSA,TMUS,VZ,T,KO,PEP,COST,WMT,TGT,HD,LOW,MCD,SBUX,NKE,EL,PG,JNJ,MRK,PFE,ABBV,LLY,UNH,CVS,TMO,DHR,ISRG,BA,CAT,DE,GE,RTX,LMT,GD,FORD,GM,RIVN,SPY,QQQ,IWM,DIA,XLF,XLK,XLE,XLV,SMH,ARKK,JPM,BAC,WFC,GS,MS,C,BLK,AXP,MA,V,COF,ADP,PYPL,INTU,AMGN,GILD,REGN,VRTX,BMY,CVX,XOM,COP,SLB,NEE,DUK,SO,PLD,AMT,EQIX'
+symbols=[x.strip().upper() for x in (raw_symbols or DEFAULT_UNIVERSE).split(',') if x.strip()]
 out=Path(os.getenv('QUANTIX_INGEST_DIR','../data/ingest'));out.mkdir(parents=True,exist_ok=True)
 
 def safe_float(v):
