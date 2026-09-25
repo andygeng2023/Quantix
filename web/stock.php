@@ -1,4 +1,14 @@
 <?php
+function quantix_remote_quote(string $symbol): array {
+  if(!preg_match('/^[A-Z0-9.^_-]{1,15}$/',$symbol)) return [[],[]];
+  $url='https://query1.finance.yahoo.com/v8/finance/chart/'.rawurlencode($symbol).'?range=1y&interval=1d&events=div%2Csplits';
+  $ctx=stream_context_create(['http'=>['timeout'=>8,'header'=>"User-Agent: Quantix/1.0\r\n"]]);
+  $raw=@file_get_contents($url,false,$ctx); if(!$raw) return [[],[]];
+  $j=json_decode($raw,true);$r=$j['chart']['result'][0]??null;if(!$r)return [[],[]];
+  $q=$r['indicators']['quote'][0]??[];$ts=$r['timestamp']??[];$prices=[];
+  foreach($ts as $i=>$t){if(!isset($q['close'][$i])||$q['close'][$i]===null)continue;$prices[]=['symbol'=>$symbol,'ts'=>gmdate('Y-m-d H:i:s',$t),'open'=>$q['open'][$i]??null,'high'=>$q['high'][$i]??null,'low'=>$q['low'][$i]??null,'close'=>$q['close'][$i],'volume'=>$q['volume'][$i]??null];}
+  $m=$r['meta']??[];return [['symbol'=>$symbol,'name'=>$m['longName']??$m['shortName']??$symbol,'market_cap'=>null,'pe'=>null,'eps'=>null,'dividend_yield'=>null,'beta'=>null],$prices];
+}
 require __DIR__.'/partials/header.php';
 $symbol=strtoupper(trim($_GET['symbol']??'AAPL'));$stock=[];$prices=[];$metrics=[];
 try{$stock=q('SELECT * FROM stocks WHERE symbol=?',[$symbol])->fetch()?:[];$prices=q('SELECT ts,close,volume FROM prices WHERE symbol=? ORDER BY ts DESC LIMIT 250',[$symbol])->fetchAll();$prices=array_reverse($prices);}catch(Throwable $x){}
@@ -11,6 +21,7 @@ if(!$stock||!$prices){
 }
 $cache=json_decode(@file_get_contents(__DIR__.'/data/market.json'),true)?:[];
 $metrics=$cache['analysis'][$symbol]??[];
+if(!$prices){[$remoteStock,$remotePrices]=quantix_remote_quote($symbol);if($remotePrices){$prices=$remotePrices;$stock=array_merge($stock,$remoteStock);}}
 ?>
 <section class="section-head"><div><span class="eyebrow">STOCK RESEARCH</span><h1><?=e($symbol)?></h1><p><?=e($stock['name']??'No fundamentals imported yet')?></p></div><a class="secondary" href="watchlist.php?add=<?=urlencode($symbol)?>">Add to watchlist</a></section>
 <div class="grid four"><div class="card"><small>Last price</small><strong><?=e(end($prices)['close']??'—')?></strong></div><div class="card"><small>Market cap</small><strong><?=e($stock['market_cap']??'—')?></strong></div><div class="card"><small>P/E</small><strong><?=e($stock['pe']??'—')?></strong></div><div class="card"><small>Beta</small><strong><?=e($stock['beta']??'—')?></strong></div></div>
