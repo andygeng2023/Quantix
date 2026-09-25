@@ -1,20 +1,65 @@
 <?php
 require __DIR__.'/partials/header.php';
-$cache=json_decode(@file_get_contents(__DIR__.'/data/market.json'),true)?:[];$stocks=$cache['stocks']??[];$analysis=$cache['analysis']??[];$generated=$cache['generated_at']??null;
-if(!$stocks){try{$stocks=q('SELECT * FROM stocks ORDER BY market_cap DESC LIMIT 1000')->fetchAll();}catch(Throwable $x){}}
-if(!$analysis){try{$aa=q('SELECT * FROM stock_analysis')->fetchAll();foreach($aa as $a){$analysis[$a['symbol']]=is_string($a['metrics']??null)?(json_decode($a['metrics'],true)?:[]):$a;}}catch(Throwable $x){}}
-if($stocks)$generated=$generated?:date('c');
-$latest=[];foreach(($cache['prices']??[]) as $p){$k=$p['symbol'];if(!isset($latest[$k])||$p['ts']>$latest[$k]['ts'])$latest[$k]=$p;}
-$rows=[];foreach($stocks as $s)$rows[]=array_merge($s,['close'=>$latest[$s['symbol']]['close']??null,'ts'=>$latest[$s['symbol']]['ts']??null]);usort($rows,fn($a,$b)=>($b['market_cap']??0)<=>($a['market_cap']??0));
-$bull=$bear=$mixed=0;foreach($analysis as $m){$t=$m['trend']??'mixed';if($t==='bullish')$bull++;elseif($t==='bearish')$bear++;else $mixed++;}
-$research=[];foreach($analysis as $sym=>$m){$rsi=$m['rsi14']??null;$path=$m['forecast_path_20d']??[];$unc=1;if($path&&isset($path[19]['low'],$path[19]['high'],$path[19]['value'])&&$path[19]['value'])$unc=max(0,min(1,1-(($path[19]['high']-$path[19]['low'])/(2*$path[19]['value']))));$score=(($m['trend']??'mixed')!=='mixed'?35:10)+(isset($m['return_20d'])&&$m['return_20d']>0?20:0)+(is_numeric($rsi)&&$rsi>35&&$rsi<70?15:0)+$unc*15+(is_numeric($m['model_confidence']??null)?$m['model_confidence']*15:0);$research[$sym]=round($score,1);}arsort($research);$research=array_slice($research,0,6,true);
+$stocks=quantix_stocks(); $analysis=quantix_analysis(); $prices=quantix_prices(); $status=quantix_status(); $generated=quantix_generated_at();
+$latest=quantix_price_map(); $rows=[];
+foreach($stocks as $s){$sym=$s['symbol']??'';$rows[]=array_merge($s,$latest[$sym]??[],['metrics'=>$analysis[$sym]??[]]);}
+usort($rows,fn($a,$b)=>(($b['market_cap']??0)<=>($a['market_cap']??0)));
+$bull=$bear=$mixed=0; foreach($analysis as $m){$t=$m['trend']??'mixed'; if($t==='bullish')$bull++; elseif($t==='bearish')$bear++; else $mixed++;}
+$research=[];
+foreach($analysis as $sym=>$m){
+  $confidence=is_numeric($m['model_confidence']??null)?(float)$m['model_confidence']:0;
+  $momentum=is_numeric($m['return_20d']??null)?max(0,min(1,($m['return_20d']+0.10)/0.20)):0.5;
+  $trend=($m['trend']??'mixed')==='mixed'?0.5:1;
+  $research[$sym]=round(100*(.35*$trend+.25*$momentum+.25*$confidence+.15*(($m['volatility_regime']??'normal')==='normal'?1:.6)),1);
+}
+arsort($research); $research=array_slice($research,0,6,true);
 ?>
-<section class="hero hero-home"><div><span class="eyebrow">QUANTITATIVE RESEARCH TERMINAL</span><h1>See the market clearly.</h1><p>One consistent workspace for prices, screening, statistical models, validation and saved research.</p><div class="hero-actions"><a class="primary" href="screener.php">Explore universe</a><a class="secondary" href="analytics.php">View research</a></div></div><div class="hero-status card"><small>DATA STATUS</small><strong><?=$stocks?'Cache ready':'Waiting for data'?></strong><span><?=e($generated?date('M j, H:i',strtotime($generated)):'Run the collector')?></span></div></section>
-<div class="grid four stat-grid"><article class="card"><small>Universe</small><strong><?=count($stocks)?></strong><span>Tracked symbols</span></article><article class="card"><small>Models</small><strong><?=count($analysis)?></strong><span>Computed analyses</span></article><article class="card"><small>Bullish trend</small><strong><?=$bull?></strong><span>Technical state</span></article><article class="card"><small>Mixed trend</small><strong><?=$mixed?></strong><span>Requires context</span></article></div>
-<section class="section-head"><div><span class="eyebrow">RESEARCH HUB</span><h2>Start with a task</h2><p>Focused areas with less overlap.</p></div></section>
-<div class="grid four quick-grid"><a class="card action-card" href="screener.php"><b>Explore</b><span>Filter the universe and open symbols.</span><em>→</em></a><a class="card action-card" href="compare.php"><b>Compare</b><span>Study several symbols side by side.</span><em>→</em></a><a class="card action-card" href="analytics.php"><b>Research</b><span>Inspect forecasts and validation.</span><em>→</em></a><a class="card action-card" href="watchlist.php"><b>Saved</b><span>Return to symbols you are studying.</span><em>→</em></a></div>
-<section class="section-head"><div><span class="eyebrow">MODEL MONITOR</span><h2>Research signals</h2><p>Educational quantitative signals, not trading recommendations.</p></div><a href="analytics.php">See validation →</a></section>
-<div class="grid three"><?php foreach($research as $sym=>$score):$m=$analysis[$sym]??[];?><a class="card stock-card" href="stock.php?symbol=<?=e($sym)?>"><div class="row-between"><b><?=e($sym)?></b><span class="badge"><?=e($m['trend']??'mixed')?></span></div><strong><?=number_format($score,1)?><small>/100 research fit</small></strong><span>20D estimate: <?=isset($m['forecast_20d'])?number_format($m['forecast_20d'],2):'—'?></span><span>Model confidence: <?=isset($m['model_confidence'])?number_format($m['model_confidence']*100,0).'%':'—'?></span></a><?php endforeach;if(!$research):?><article class="card empty"><b>No model data yet</b><span>Run the Quantix Data Collector workflow.</span></article><?php endif;?></div>
-<section class="section-head"><div><span class="eyebrow">MARKET BOARD</span><h2>Largest tracked symbols</h2></div><a href="screener.php">Full universe →</a></section>
-<div class="table-card"><table><thead><tr><th>Symbol</th><th>Price</th><th>Trend</th><th>20D return</th><th>Volatility</th></tr></thead><tbody><?php foreach(array_slice($rows,0,12) as $r):$m=$analysis[$r['symbol']]??[];?><tr><td><a href="stock.php?symbol=<?=e($r['symbol'])?>"><b><?=e($r['symbol'])?></b></a></td><td><?=is_numeric($r['close'])?number_format($r['close'],2):'—'?></td><td><?=e($m['trend']??'—')?></td><td><?=isset($m['return_20d'])?number_format($m['return_20d']*100,1).'%':'—'?></td><td><?=isset($m['annualized_volatility'])?number_format($m['annualized_volatility']*100,1).'%':'—'?></td></tr><?php endforeach;if(!$rows):?><tr><td colspan="5">Market cache is empty. Run the Quantix Data Collector workflow.</td></tr><?php endif;?></tbody></table></div>
+<section class="hero">
+  <div class="hero-copy">
+    <span class="eyebrow">QUANTITATIVE RESEARCH TERMINAL</span>
+    <h1>Research the market without the clutter.</h1>
+    <p>Quantix combines a cached research universe, live quote polling, screening, model forecasts and walk-forward validation in one compact workspace.</p>
+    <div class="hero-actions"><a class="primary" href="screener.php">Explore universe</a><a class="secondary" href="analytics.php">Open model lab</a></div>
+  </div>
+  <article class="card status-card">
+    <div><span class="eyebrow">DATA PIPELINE</span><strong class="status-<?=$status['tone']?>"><?=e($status['label'])?></strong></div>
+    <div class="status-meta"><span><?=count($stocks)?> symbols</span><span><?=count($analysis)?> models</span></div>
+    <span><?=e($generated?date('M j, Y · H:i',strtotime($generated)):'No cache timestamp')?></span>
+  </article>
+</section>
+
+<div class="grid four">
+  <article class="card stat-card"><span>Universe</span><strong><?=count($stocks)?></strong><small>Tracked research symbols</small></article>
+  <article class="card stat-card"><span>Analyses</span><strong><?=count($analysis)?></strong><small>Computed model records</small></article>
+  <article class="card stat-card"><span>Bullish state</span><strong><?=number_format(count($analysis)?$bull/count($analysis)*100:0,0)?>%</strong><small><?=$bull?> of <?=$bull+$bear+$mixed?></small></article>
+  <article class="card stat-card"><span>Cache age</span><strong><?=is_numeric($status['age'])?($status['age']<60?number_format($status['age'],0).'m':number_format($status['age']/60,1).'h'):'—'?></strong><small>Full analytics refresh</small></article>
+</div>
+
+<section class="section-head"><div><span class="eyebrow">WORKSPACE</span><h2>Choose a research task</h2><p>Each area has a distinct purpose.</p></div></section>
+<div class="quick-grid">
+  <a class="card action-card" href="screener.php"><b>Explore</b><span>Search the universe, filter model states and open symbols.</span><em>→</em></a>
+  <a class="card action-card" href="compare.php"><b>Compare</b><span>Place several symbols side by side across market and model metrics.</span><em>→</em></a>
+  <a class="card action-card" href="analytics.php"><b>Research</b><span>Inspect forecast quality, interval coverage and model diagnostics.</span><em>→</em></a>
+  <a class="card action-card" href="watchlist.php"><b>Saved</b><span>Keep a focused list of symbols you are studying.</span><em>→</em></a>
+</div>
+
+<section class="section-head"><div><span class="eyebrow">MODEL MONITOR</span><h2>Research candidates</h2><p>Quantitative screening context only; not trading instructions.</p></div><a href="analytics.php">View validation →</a></section>
+<div class="grid three">
+<?php foreach($research as $sym=>$score): $m=$analysis[$sym]??[]; ?>
+<a class="card stock-card" href="stock.php?symbol=<?=e($sym)?>">
+  <div class="row-between"><b><?=e($sym)?></b><span class="badge"><?=e($m['trend']??'mixed')?></span></div>
+  <strong><?=number_format($score,1)?><small>/100 research fit</small></strong>
+  <span>20D model: <?=quantix_num($m['forecast_20d']??null)?></span>
+  <span>Confidence: <?=is_numeric($m['model_confidence']??null)?number_format($m['model_confidence']*100,0).'%':'—'?></span>
+</a>
+<?php endforeach; if(!$research): ?><article class="card empty"><b>No model records available.</b><span>Quantix is waiting for a valid market cache.</span></article><?php endif; ?>
+</div>
+
+<section class="section-head"><div><span class="eyebrow">MARKET BOARD</span><h2>Largest tracked symbols</h2></div><a href="screener.php">Open screener →</a></section>
+<div class="table-card"><table><thead><tr><th>Symbol</th><th>Price</th><th>Trend</th><th>20D return</th><th>Volatility</th><th>RSI</th></tr></thead><tbody>
+<?php foreach(array_slice($rows,0,14) as $r): $m=$r['metrics']; ?>
+<tr><td><a href="stock.php?symbol=<?=e($r['symbol'])?>"><b><?=e($r['symbol'])?></b></a></td><td><?=quantix_num($r['close']??null)?></td><td><?=e($m['trend']??'—')?></td><td class="<?=quantix_change_class($m['return_20d']??null)?>"><?=quantix_pct($m['return_20d']??null)?></td><td><?=quantix_pct($m['annualized_volatility']??null)?></td><td><?=quantix_num($m['rsi14']??null,1)?></td></tr>
+<?php endforeach; if(!$rows): ?><tr><td colspan="6">No market cache is available yet.</td></tr><?php endif; ?>
+</tbody></table></div>
+<div class="notice">Full analytics are refreshed by the scheduled data pipeline. Individual stock pages also poll a live quote separately when available.</div>
 <?php require __DIR__.'/partials/footer.php'; ?>
