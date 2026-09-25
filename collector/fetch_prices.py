@@ -18,7 +18,8 @@ else:
         print('Universe download failed:',exc)
         symbols=['AAPL','MSFT','NVDA','AMZN','GOOGL','META','TSLA']
     symbols=list(dict.fromkeys(symbols+ETF_EXTRAS))
-out=Path(os.getenv('QUANTIX_INGEST_DIR','../data/ingest'));out.mkdir(parents=True,exist_ok=True)
+ROOT=Path(__file__).resolve().parents[1]
+out=Path(os.getenv('QUANTIX_INGEST_DIR',str(ROOT/'data'/'ingest')));out.mkdir(parents=True,exist_ok=True)
 def safe_float(v):
     try:
         return None if pd.isna(v) else float(v)
@@ -151,12 +152,12 @@ except Exception as exc:
 
 print(f'Fetching {len(symbols)} symbols in efficient batches')
 price_frames={}
-BATCH_SIZE=25
+BATCH_SIZE=12
 for start in range(0,len(symbols),BATCH_SIZE):
     batch=symbols[start:start+BATCH_SIZE]
     print(f'Batch {start+1}-{start+len(batch)} / {len(symbols)}')
     try:
-        frame=yf.download(' '.join(batch),period='1y',interval='1d',auto_adjust=False,group_by='ticker',threads=True,progress=False,timeout=30)
+        frame=yf.download(batch,period='1y',interval='1d',auto_adjust=False,group_by='ticker',threads=False,progress=False,timeout=30)
         for sym in batch:
             try:
                 price_frames[sym]=frame[sym].dropna(how='all').reset_index()
@@ -226,8 +227,9 @@ for sym, ser in series.items():
     analyses[sym]['data_quality']={'observations':int(len(series[sym])),'freshness':str(max((p['ts'] for p in all_prices if p['symbol']==sym),default=None))}
     print('analysis',sym,analyses[sym].get('trend'),analyses[sym].get('forecast_20d'),analyses[sym].get('backtest',{}))
 
-cache=Path('web/data/market.json');cache.parent.mkdir(parents=True,exist_ok=True)
-if len(all_stocks) < 400 or len(analyses) < 400:
-    raise RuntimeError(f'Collector produced an unsafe cache: {len(all_stocks)} stocks / {len(analyses)} analyses')
+cache=ROOT/'web'/'data'/'market.json';cache.parent.mkdir(parents=True,exist_ok=True)
+valid_symbols=sum(1 for sym in symbols if len(series.get(sym,[])) >= 30)
+if len(all_stocks) < 400 or len(analyses) < 400 or valid_symbols < 400:
+    raise RuntimeError(f'Collector produced an unsafe cache: {len(all_stocks)} stocks / {len(analyses)} analyses / {valid_symbols} valid price series')
 cache.write_text(json.dumps({'generated_at':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z'),'stocks':all_stocks,'prices':all_prices,'analysis':analyses},separators=(',',':')))
 print(f'Wrote static market cache: {cache} ({len(all_stocks)} stocks, {len(all_prices)} prices, {len(analyses)} analyses)')
