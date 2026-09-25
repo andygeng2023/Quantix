@@ -5,10 +5,20 @@ import pandas as pd
 import yfinance as yf
 
 raw_symbols=os.getenv('QUANTIX_SYMBOLS','').strip()
-DEFAULT_UNIVERSE='AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,AVGO,ORCL,CRM,ADBE,AMD,INTC,QCOM,TXN,MU,AMAT,ASML,CSCO,IBM,NOW,PANW,PLTR,SNOW,NET,CRWD,UBER,ABNB,SHOP,SPOT,NFLX,DIS,CMCSA,TMUS,VZ,T,KO,PEP,COST,WMT,TGT,HD,LOW,MCD,SBUX,NKE,EL,PG,JNJ,MRK,PFE,ABBV,LLY,UNH,CVS,TMO,DHR,ISRG,BA,CAT,DE,GE,RTX,LMT,GD,FORD,GM,RIVN,SPY,QQQ,IWM,DIA,XLF,XLK,XLE,XLV,SMH,ARKK,JPM,BAC,WFC,GS,MS,C,BLK,AXP,MA,V,COF,ADP,PYPL,INTU,AMGN,GILD,REGN,VRTX,BMY,CVX,XOM,COP,SLB,NEE,DUK,SO,PLD,AMT,EQIX'
-symbols=[x.strip().upper() for x in (raw_symbols or DEFAULT_UNIVERSE).split(',') if x.strip()]
+UNIVERSE_URL='https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv'
+FINANCIALS_URL='https://raw.githubusercontent.com/datasets/s-and-p-500-companies-financials/main/data/constituents-financials.csv'
+ETF_EXTRAS=['SPY','QQQ','IWM','DIA','XLF','XLK','XLE','XLV','SMH','ARKK']
+if raw_symbols:
+    symbols=[x.strip().upper() for x in raw_symbols.split(',') if x.strip()]
+else:
+    try:
+        universe_df=pd.read_csv(UNIVERSE_URL)
+        symbols=[str(x).strip().upper().replace('.','-') for x in universe_df['Symbol'].dropna().tolist()]
+    except Exception as exc:
+        print('Universe download failed:',exc)
+        symbols=['AAPL','MSFT','NVDA','AMZN','GOOGL','META','TSLA']
+    symbols=list(dict.fromkeys(symbols+ETF_EXTRAS))
 out=Path(os.getenv('QUANTIX_INGEST_DIR','../data/ingest'));out.mkdir(parents=True,exist_ok=True)
-
 def safe_float(v):
     try:
         return None if pd.isna(v) else float(v)
@@ -103,21 +113,44 @@ def backtest_summary(s):
     return {f'{h}d':backtest_forecast(s,h) for h in (5,20)}
 
 all_stocks=[]; all_prices=[]; series={}
-for sym in symbols:
-    t=yf.Ticker(sym)
-    try: info=t.info or {}
-    except Exception: info={}
-    stocks=[{'symbol':sym,'name':info.get('longName') or info.get('shortName'),'exchange':info.get('exchange'),'sector':info.get('sector'),'industry':info.get('industry'),'market_cap':info.get('marketCap'),'pe':info.get('trailingPE'),'eps':info.get('trailingEps'),'dividend_yield':info.get('dividendYield'),'beta':info.get('beta'),'revenue_growth':info.get('revenueGrowth'),'eps_growth':info.get('earningsGrowth'),'updated_at':dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}]
-    h=t.history(period='1y',auto_adjust=False)
-    prices=[]
-    for idx,row in h.iterrows():
-        prices.append({'symbol':sym,'ts':idx.to_pydatetime().strftime('%Y-%m-%d %H:%M:%S'),'open':safe_float(row.Open),'high':safe_float(row.High),'low':safe_float(row.Low),'close':safe_float(row.Close),'volume':None if pd.isna(row.Volume) else int(row.Volume)})
-    all_stocks.extend(stocks); all_prices.extend(prices)
-    series[sym]=pd.Series([p['close'] for p in prices],dtype=float)
-    payload={'generated_at':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z'),'stocks':stocks,'prices':prices}
-    (out/f'quantix-{sym}-{dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H%M%S")}.json').write_text(json.dumps(payload,separators=(',',':')))
-    print(sym, len(prices), 'observations')
+try:
+    fin=pd.read_csv(FINANCIALS_URL)
+    fin['Symbol']=fin['Symbol'].astype(str).str.strip().str.upper().str.replace('.','-',regex=False)
+    fin_by_symbol={str(r['Symbol']):r for _,r in fin.iterrows()}
+except Exception as exc:
+    print('Financial dataset download failed:',exc)
+    fin_by_symbol={}
 
+print(f'Fetching {len(symbols)} symbols in batched price downloads')
+price_data=yf.download(' '.join(symbols),period='1y',interval='1d',auto_adjust=False,group_by='ticker',threads=True,progress=False)
+for sym in symbols:
+    info=fin_by_symbol.get(sym,{})
+    stocks=[{'symbol':sym,'name':None if pd.isna(info.get('Name')) else info.get('Name'),
+             'exchange':None,'sector':None if pd.isna(info.get('Sector')) else info.get('Sector'),'industry':None,
+             'market_cap':safe_float(info.get('Market Cap')),'pe':safe_float(info.get('Price/Earnings')),
+             'eps':safe_float(info.get('Earnings/Share')),'dividend_yield':safe_float(info.get('Dividend Yield')),
+             'beta':None,'revenue_growth':None,'eps_growth':None,
+             'price_to_sales':safe_float(info.get('Price/Sales')),'price_to_book':safe_float(info.get('Price/Book')),
+             '52_week_low':safe_float(info.get('52 Week Low')),'52_week_high':safe_float(info.get('52 Week High')),
+             'updated_at':dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}]
+    try:
+        h=price_data[sym].dropna(how='all').reset_index()
+    except Exception:
+        h=pd.DataFrame()
+    prices=[]
+    if not h.empty:
+        date_col=h.columns[0]
+        for _,row in h.iterrows():
+            close=row.get('Close')
+            if pd.isna(close): continue
+            prices.append({'symbol':sym,'ts':pd.Timestamp(row[date_col]).to_pydatetime().strftime('%Y-%m-%d %H:%M:%S'),
+                           'open':safe_float(row.get('Open')),'high':safe_float(row.get('High')),
+                           'low':safe_float(row.get('Low')),'close':safe_float(close),
+                           'volume':None if pd.isna(row.get('Volume')) else int(row.get('Volume'))})
+    if prices:
+        all_stocks.extend(stocks); all_prices.extend(prices)
+        series[sym]=pd.Series([p['close'] for p in prices],dtype=float)
+        print(sym,len(prices),'observations')
 aligned=pd.DataFrame(series).dropna()
 benchmark=aligned.pct_change().dropna().mean(axis=1) if not aligned.empty else None
 analyses={}
