@@ -6,4 +6,6 @@ pandas>=2.2,<3
 scikit-learn>=1.5,<2
 joblib>=1.4,<2
 python-dotenv>=1.0,<2
-# Install Bloomberg blpapi only in an authorized Bloomberg environment.
+websocket-client>=1.8,<2
+httpx>=0.27,<1
+# Bloomberg blpapi is optional and should only be installed in an authorized Bloomberg environment.
