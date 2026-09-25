@@ -151,7 +151,7 @@ except Exception as exc:
 
 print(f'Fetching {len(symbols)} symbols in efficient batches')
 price_frames={}
-BATCH_SIZE=50
+BATCH_SIZE=40
 for start in range(0,len(symbols),BATCH_SIZE):
     batch=symbols[start:start+BATCH_SIZE]
     print(f'Batch {start+1}-{start+len(batch)} / {len(symbols)}')
@@ -220,9 +220,11 @@ for sym, ser in series.items():
         r=bm.iloc[:,0]; bm=bm.iloc[:,1]
     analyses[sym]=metrics(df,bm)
     analyses[sym]['backtest']=backtest_summary(series[sym])
-    analyses[sym]['data_quality']={'observations':int(len(series[sym])),'freshness':str(all_prices[-1]['ts']) if all_prices and all_prices[-1]['symbol']==sym else None}
+    analyses[sym]['data_quality']={'observations':int(len(series[sym])),'freshness':str(max((p['ts'] for p in all_prices if p['symbol']==sym),default=None))}
     print('analysis',sym,analyses[sym].get('trend'),analyses[sym].get('forecast_20d'),analyses[sym].get('backtest',{}))
 
 cache=Path('web/data/market.json');cache.parent.mkdir(parents=True,exist_ok=True)
+if len(all_stocks) < 400 or len(analyses) < 400:
+    raise RuntimeError(f'Collector produced an unsafe cache: {len(all_stocks)} stocks / {len(analyses)} analyses')
 cache.write_text(json.dumps({'generated_at':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z'),'stocks':all_stocks,'prices':all_prices,'analysis':analyses},separators=(',',':')))
 print(f'Wrote static market cache: {cache} ({len(all_stocks)} stocks, {len(all_prices)} prices, {len(analyses)} analyses)')
