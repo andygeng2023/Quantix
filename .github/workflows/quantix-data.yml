@@ -1,0 +1,20 @@
+name: Quantix Data Collector
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r collector/requirements.txt requests
+      - name: Fetch yfinance data and import into Quantix
+        env:
+          QUANTIX_SYMBOLS: ${{ vars.QUANTIX_SYMBOLS }}
+          QUANTIX_INGEST_URL: ${{ secrets.QUANTIX_INGEST_URL }}
+          QUANTIX_INGEST_TOKEN: ${{ secrets.QUANTIX_INGEST_TOKEN }}
+        run: python collector/fetch_prices.py
