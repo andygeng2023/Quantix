@@ -27,12 +27,14 @@ function quantix_analysis():array {
 }
 function quantix_prices():array {
     $p=quantix_cache()['prices'];
-    if($p)return $p;
-    return [];
+    return is_array($p)?$p:[];
 }
 function quantix_generated_at():?string {
     $v=quantix_cache()['generated_at']??null;
-    return is_string($v)&&$v!==''?$v:null;
+    if(is_string($v)&&$v!=='')return $v;
+    $path=__DIR__.'/../data/market.json';
+    $mtime=@filemtime($path);
+    return $mtime?gmdate('c',$mtime):null;
 }
 function quantix_age_minutes():?float {
     $g=quantix_generated_at();if(!$g)return null;$t=strtotime($g);return $t?max(0,(time()-$t)/60):null;
