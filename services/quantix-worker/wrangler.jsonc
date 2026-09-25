@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "quantix-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-25",
+  "workers_dev": true,
+  "vars": {
+    "DEFAULT_SYMBOLS": "AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,AMD,AVGO,NFLX,QQQ,SPY,IWM,GLD,TLT"
+  },
+  "durable_objects": {
+    "bindings": [
+      {"name": "MARKET_STREAM", "class_name": "MarketStream"}
+    ]
+  },
+  "migrations": [
+    {"tag": "v1", "new_sqlite_classes": ["MarketStream"]}
+  ]
+}
