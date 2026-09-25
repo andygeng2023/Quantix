@@ -23,14 +23,8 @@ jobs:
           QUANTIX_SYMBOLS: ${{ vars.QUANTIX_SYMBOLS }}
         run: python collector/fetch_prices.py
       - name: Verify generated cache
-        run: python - <<'PY'
-import json
-p='web/data/market.json'
-d=json.load(open(p))
-assert len(d.get('stocks',[])) >= 400, f"Universe unexpectedly small: {len(d.get('stocks',[]))}"
-assert len(d.get('analysis',{})) >= 400, f"Analysis unexpectedly small: {len(d.get('analysis',{}))}"
-print('Verified',len(d['stocks']),'stocks and',len(d['analysis']),'analyses')
-PY
+        run: |
+          python -c "import json; d=json.load(open('web/data/market.json')); assert len(d.get('stocks',[])) >= 400, f\"Universe unexpectedly small: {len(d.get('stocks',[]))}\"; assert len(d.get('analysis',{})) >= 400, f\"Analysis unexpectedly small: {len(d.get('analysis',{}))}\"; print('Verified',len(d['stocks']),'stocks and',len(d['analysis']),'analyses')"
       - name: Publish static market cache
         run: |
           git config user.name "Quantix Data Bot"
