@@ -20,3 +20,37 @@ if(fc&&window.QUANTIX_PRICE&&window.QUANTIX_FORECAST){
   {label:'Upper interval',data:high,tension:.2,pointRadius:0,borderWidth:1,borderDash:[3,5]}
  ]},options:{responsive:true,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true}},scales:{x:{display:false}}}});
 }
+
+(function(){
+  const symbol=window.QUANTIX_SYMBOL;
+  if(!symbol || !window.QUANTIX_LIVE) return;
+  let timer=null;
+  let busy=false;
+  async function refreshLive(){
+    if(busy || document.hidden) return;
+    busy=true;
+    try{
+      const r=await fetch('api/live.php?symbol='+encodeURIComponent(symbol)+'&_='+Date.now(),{cache:'no-store'});
+      if(!r.ok) throw new Error('live quote '+r.status);
+      const d=await r.json();
+      if(typeof d.price==='number'){
+        const cards=document.querySelectorAll('.card strong');
+        if(cards[0]) cards[0].textContent=d.price.toFixed(d.price<10?3:2);
+        const title=document.querySelector('.chart-card .card-title span');
+        if(title) title.textContent='Live quote • '+new Date(d.timestamp||Date.now()).toLocaleTimeString();
+        if(window.QUANTIX_PRICE?.length){
+          const last=window.QUANTIX_PRICE[window.QUANTIX_PRICE.length-1];
+          if(last && new Date(d.timestamp).getTime()>=new Date(last.ts).getTime()) last.close=d.price;
+        }
+      }
+    }catch(e){
+      // Keep the cached research state visible when the live source is unavailable.
+    }finally{
+      busy=false;
+    }
+  }
+  refreshLive();
+  timer=setInterval(refreshLive,3000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshLive();});
+  window.addEventListener('beforeunload',()=>{if(timer)clearInterval(timer);});
+})();
