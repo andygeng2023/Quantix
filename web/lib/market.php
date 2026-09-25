@@ -3,8 +3,14 @@ function quantix_cache(): array {
     static $cache=null;
     if($cache!==null)return $cache;
     $path=__DIR__.'/../data/market.json';
-    $raw=@file_get_contents($path);
-    $cache=is_string($raw)?(json_decode($raw,true)?:[]):[];
+    $cache=[];
+    if(is_readable($path)){
+        $raw=@file_get_contents($path);
+        if(is_string($raw)&&$raw!==''){
+            $decoded=json_decode($raw,true);
+            if(is_array($decoded))$cache=$decoded;
+        }
+    }
     foreach(['stocks','prices','analysis'] as $k)$cache[$k]=is_array($cache[$k]??null)?$cache[$k]:[];
     return $cache;
 }
@@ -32,12 +38,12 @@ function quantix_age_minutes():?float {
     $g=quantix_generated_at();if(!$g)return null;$t=strtotime($g);return $t?max(0,(time()-$t)/60):null;
 }
 function quantix_status():array {
-    $age=quantix_age_minutes();$count=count(quantix_stocks());
-    if(!$count)return ['label'=>'Data unavailable','tone'=>'bad','age'=>$age,'count'=>0];
-    if($age===null)return ['label'=>'Loaded · timestamp unknown','tone'=>'warn','age'=>null,'count'=>$count];
-    if($age<=20)return ['label'=>'Live research cache','tone'=>'good','age'=>$age,'count'=>$count];
-    if($age<=90)return ['label'=>'Cache aging','tone'=>'warn','age'=>$age,'count'=>$count];
-    return ['label'=>'Cache stale','tone'=>'bad','age'=>$age,'count'=>$count];
+    $age=quantix_age_minutes();$count=count(quantix_stocks());$analysis=count(quantix_analysis());$prices=count(quantix_prices());
+    if(!$count)return ['label'=>'Data unavailable','tone'=>'bad','age'=>$age,'count'=>0,'analysis'=>$analysis,'prices'=>$prices];
+    if($age===null)return ['label'=>'Loaded · timestamp unknown','tone'=>'warn','age'=>null,'count'=>$count,'analysis'=>$analysis,'prices'=>$prices];
+    if($age<=90)return ['label'=>'Live research cache','tone'=>'good','age'=>$age,'count'=>$count,'analysis'=>$analysis,'prices'=>$prices];
+    if($age<=240)return ['label'=>'Cache aging','tone'=>'warn','age'=>$age,'count'=>$count,'analysis'=>$analysis,'prices'=>$prices];
+    return ['label'=>'Cache stale','tone'=>'bad','age'=>$age,'count'=>$count,'analysis'=>$analysis,'prices'=>$prices];
 }
 function quantix_stock_map():array {
     static $map=null;if($map!==null)return $map;$map=[];
