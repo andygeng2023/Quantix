@@ -2,12 +2,16 @@ name: Quantix Data Collector
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/5 * * * *'
 permissions:
   contents: write
 jobs:
   collect:
     runs-on: ubuntu-latest
+    concurrency:
+      group: quantix-data-collector
+      cancel-in-progress: true
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,6 +24,15 @@ jobs:
           QUANTIX_INGEST_URL: ${{ secrets.QUANTIX_INGEST_URL }}
           QUANTIX_INGEST_TOKEN: ${{ secrets.QUANTIX_INGEST_TOKEN }}
         run: python collector/fetch_prices.py
+      - name: Verify generated cache
+        run: python - <<'PY'
+import json
+p='web/data/market.json'
+d=json.load(open(p))
+assert len(d.get('stocks',[])) >= 400, f"Universe unexpectedly small: {len(d.get('stocks',[]))}"
+assert len(d.get('analysis',{})) >= 400, f"Analysis unexpectedly small: {len(d.get('analysis',{}))}"
+print('Verified',len(d['stocks']),'stocks and',len(d['analysis']),'analyses')
+PY
       - name: Publish static market cache
         run: |
           git config user.name "Quantix Data Bot"
