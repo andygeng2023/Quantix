@@ -1,1 +1,70 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Quantix — Market Intelligence</title><link rel="stylesheet" href="styles.css"></head><body><aside><div class="logo"><b>Q</b> QUANTIX</div><nav><a class="active" href="#overview">Overview</a><a href="#markets">Markets</a><a href="#signals">Signals</a><a href="#models">Models</a><a href="#research">Research</a></nav></aside><main><header><div><label>QUANTITATIVE MARKET INTELLIGENCE</label><h1>Decision-grade market analytics</h1></div><button id="refresh">Refresh data</button></header><section class="cards" id="overview"><article class="hero"><div><label>MODEL REGIME</label><h2>Risk-on</h2><p>Cross-asset momentum is constructive in the research sample.</p></div><strong><span id="score">74</span><i>/100</i></strong></article><article><label>TRACKED INSTRUMENTS</label><h2>2,486</h2><p>8 asset classes</p></article><article><label>MODEL CONFIDENCE</label><h2>78.4%</h2><p>Out-of-sample research set</p></article></section><section class="grid"><article class="panel" id="markets"><div class="head"><div><label>MARKET</label><h3>S&P 500 — model view</h3></div><select><option>1D</option><option>1W</option><option>1M</option></select></div><canvas id="chart"></canvas><div class="legend">Observed · Model path · Confidence band</div></article><article class="panel" id="signals"><label>SIGNALS</label><h3>Research watchlist</h3><div id="signalList"></div></article></section><section class="panel" id="models"><div class="head"><div><label>MODEL MONITOR</label><h3>Research models</h3></div><span id="updated">Updated just now</span></div><table><thead><tr><th>MODEL</th><th>HORIZON</th><th>HIT RATE</th><th>SHARPE*</th><th>STATUS</th></tr></thead><tbody id="modelsTable"></tbody></table></section><section class="note" id="research"><b>Research architecture</b><span>Ingestion, feature engineering, inference and presentation remain separated so signals can be audited by timestamp and model version.</span></section><footer>Quantix Research Platform · Analytics only · Not investment advice</footer></main><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quantix — Quantitative Market Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-shell">
+<aside class="sidebar">
+  <div class="brand"><span class="brand-mark">Q</span><span>QUANTIX</span></div>
+  <div class="workspace"><span class="dot live"></span> RESEARCH WORKSPACE</div>
+  <nav>
+    <a class="active" href="#overview">Overview</a><a href="#markets">Markets</a><a href="#signals">Signals</a><a href="#models">Models</a><a href="#research">Research</a>
+  </nav>
+  <div class="side-note"><span>DATA STATUS</span><b id="dataStatus">Awaiting API</b><small>Bloomberg data stays server-side.</small></div>
+</aside>
+<main>
+<header class="topbar">
+  <div><div class="eyebrow">QUANTITATIVE MARKET INTELLIGENCE</div><h1>Research terminal</h1><p class="subtitle">Model-driven market state, forecasts and diagnostics in one workspace.</p></div>
+  <div class="top-actions"><span class="api-pill" id="apiPill"><i></i> API offline</span><button id="refresh" class="button">Refresh</button></div>
+</header>
+
+<section id="overview" class="hero-grid">
+  <article class="hero-card">
+    <div class="eyebrow">MODEL REGIME</div><div class="hero-row"><div><h2 id="regime">Awaiting model</h2><p id="regimeText">Connect the Quantix API to display live model output.</p></div><div class="score-ring"><span id="score">—</span><small>/100</small></div></div>
+    <div class="hero-meta"><span>Horizon <b id="horizon">5D</b></span><span>Confidence <b id="confidence">—</b></span><span>Model <b id="modelName">Gradient Boosting</b></span></div>
+  </article>
+  <article class="metric-card"><span class="eyebrow">TRACKED</span><strong>2,486</strong><span>instruments · 8 asset classes</span></article>
+  <article class="metric-card"><span class="eyebrow">OOS ROC-AUC</span><strong id="auc">—</strong><span id="metricNote">Requires trained artifact</span></article>
+</section>
+
+<section class="content-grid">
+<article class="panel chart-panel" id="markets">
+  <div class="panel-head"><div><div class="eyebrow">MARKET MODEL</div><h3>Reference index · model context</h3></div><div class="chart-controls"><button class="range active">1M</button><button class="range">3M</button><button class="range">1Y</button></div></div>
+  <div class="chart-wrap"><canvas id="chart"></canvas><div class="chart-overlay"><span class="legend-line observed"></span>Observed <span class="legend-line model"></span>Model context</div></div>
+  <div class="chart-foot"><span>Illustrative display until an authorized market-data feed is connected.</span><span id="chartUpdated">—</span></div>
+</article>
+
+<article class="panel" id="signals">
+  <div class="panel-head"><div><div class="eyebrow">SIGNALS</div><h3>Research watchlist</h3></div><span class="tiny-status">READ-ONLY</span></div>
+  <div id="signalList" class="signal-list"></div>
+</article>
+</section>
+
+<section class="panel" id="models">
+<div class="panel-head"><div><div class="eyebrow">MODEL MONITOR</div><h3>Production readiness</h3></div><span id="updated">No live run</span></div>
+<div class="model-grid">
+  <div class="model-main">
+    <div class="model-title"><div class="model-icon">ML</div><div><b>Quantix Directional Classifier</b><span>HistGradientBoostingClassifier</span></div><span class="status-badge" id="modelStatus">NOT TRAINED</span></div>
+    <div class="progress-row"><span>Training pipeline</span><div class="progress"><i id="trainProgress"></i></div><b id="trainLabel">0%</b></div>
+    <div class="feature-tags"><span>returns</span><span>volatility</span><span>MA gaps</span><span>volume z-score</span><span>RSI</span></div>
+  </div>
+  <div class="diagnostics"><div><span>Horizon</span><b id="diagHorizon">5 days</b></div><div><span>Split</span><b>Chronological 80/20</b></div><div><span>Leakage control</span><b class="ok">Enabled</b></div></div>
+</div>
+<table><thead><tr><th>METRIC</th><th>VALUE</th><th>INTERPRETATION</th></tr></thead><tbody id="metricsTable"></tbody></table>
+</section>
+
+<section class="research-grid" id="research">
+<article class="panel methodology"><div class="eyebrow">RESEARCH</div><h3>How Quantix produces a signal</h3>
+<div class="steps"><div><b>01</b><span>Ingest</span><small>Authorized OHLCV data</small></div><div><b>02</b><span>Engineer</span><small>Returns, volatility, trend, volume, RSI</small></div><div><b>03</b><span>Predict</span><small>Out-of-sample classifier</small></div><div><b>04</b><span>Audit</span><small>Timestamp + model version</small></div></div></article>
+<article class="panel"><div class="eyebrow">API</div><h3>Connect the model backend</h3><p class="api-copy">The public website is static. Bloomberg credentials and market data must remain on authorized backend infrastructure.</p><code id="apiUrlLabel">API_URL not configured</code><button id="apiHelp" class="button secondary">Backend requirements</button></article>
+</section>
+<footer>Quantix Research Platform · Analytics only · No execution or investment advice</footer>
+</main>
+</div>
+<script src="app.js"></script>
+</body></html>
