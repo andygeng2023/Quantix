@@ -1,10 +1,19 @@
 <?php
 require __DIR__.'/partials/header.php';
-$cache=json_decode(@file_get_contents(__DIR__.'/data/market.json'),true)?:[];
-$stocks=$cache['stocks']??[];$analysis=$cache['analysis']??[];
-$bySymbol=[];foreach($stocks as $s)$bySymbol[$s['symbol']]=$s;
+$cache=json_decode(@file_get_contents(__DIR__.'/data/market.json'),true)?:[];$stocks=$cache['stocks']??[];$analysis=$cache['analysis']??[];
+function avg_metric($rows,$key){$v=[];foreach($rows as $r)if(isset($r[$key])&&is_numeric($r[$key]))$v[]=$r[$key];return $v?array_sum($v)/count($v):null;}
+$all5=[];$all20=[];foreach($analysis as $m){if(!empty($m['backtest']['5d']))$all5[]=$m['backtest']['5d'];if(!empty($m['backtest']['20d']))$all20[]=$m['backtest']['20d'];}
+$bt5=['mae'=>avg_metric($all5,'mae'),'rmse'=>avg_metric($all5,'rmse'),'directional_accuracy'=>avg_metric($all5,'directional_accuracy'),'interval_coverage'=>avg_metric($all5,'interval_coverage')];
+$bt20=['mae'=>avg_metric($all20,'mae'),'rmse'=>avg_metric($all20,'rmse'),'directional_accuracy'=>avg_metric($all20,'directional_accuracy'),'interval_coverage'=>avg_metric($all20,'interval_coverage')];
 ?>
 <section class="section-head"><div><span class="eyebrow">QUANT ANALYTICS</span><h1>Analytics & Forecasts</h1><p>Rule-based technical and statistical analysis of the cached historical series. Forecasts are model estimates, not guaranteed outcomes.</p></div></section>
+<div class="grid four">
+<?php foreach([['5D directional accuracy',$bt5['directional_accuracy']],['20D directional accuracy',$bt20['directional_accuracy']],['5D interval coverage',$bt5['interval_coverage']],['20D interval coverage',$bt20['interval_coverage']]] as $c): ?><article class="card"><small><?=e($c[0])?></small><strong><?=is_numeric($c[1])?number_format($c[1]*100,1).'%':'—'?></strong><span>Walk-forward historical validation</span></article><?php endforeach; ?>
+</div>
+<div class="card"><div class="card-title"><b>Walk-forward model validation</b><span>Out-of-sample historical tests</span></div><p class="muted">Each test fits the same log-linear model using only observations available before the forecast origin, then compares the forecast with later observed prices. Aggregate figures are simple averages across symbols. Historical validation does not establish future performance.</p>
+<div class="table-card"><table><thead><tr><th>Horizon</th><th>Symbols tested</th><th>MAE</th><th>RMSE</th><th>Directional accuracy</th><th>Interval coverage</th></tr></thead><tbody>
+<?php foreach([['5 sessions',$all5,$bt5],['20 sessions',$all20,$bt20]] as $r): ?><tr><td><?=e($r[0])?></td><td><?=count($r[1])?></td><td><?=is_numeric($r[2]['mae'])?number_format($r[2]['mae'],2):'—'?></td><td><?=is_numeric($r[2]['rmse'])?number_format($r[2]['rmse'],2):'—'?></td><td><?=is_numeric($r[2]['directional_accuracy'])?number_format($r[2]['directional_accuracy']*100,1).'%':'—'?></td><td><?=is_numeric($r[2]['interval_coverage'])?number_format($r[2]['interval_coverage']*100,1).'%':'—'?></td></tr><?php endforeach; ?>
+</tbody></table></div></div>
 <div class="table-card"><table><thead><tr><th>Symbol</th><th>Trend</th><th>20D return</th><th>Volatility</th><th>Drawdown</th><th>RSI</th><th>20D forecast</th><th>95% interval</th></tr></thead><tbody>
 <?php foreach($analysis as $sym=>$m): $f=$m['forecast_20d']??null;$lo=$m['forecast_20d_low']??null;$hi=$m['forecast_20d_high']??null; ?>
 <tr><td><a href="stock.php?symbol=<?=e($sym)?>"><b><?=e($sym)?></b></a></td><td><?=e($m['trend']??'—')?></td><td><?=isset($m['return_20d'])?number_format($m['return_20d']*100,1).'%':'—'?></td><td><?=isset($m['annualized_volatility'])?number_format($m['annualized_volatility']*100,1).'%':'—'?></td><td><?=isset($m['max_drawdown'])?number_format($m['max_drawdown']*100,1).'%':'—'?></td><td><?=isset($m['rsi14'])?number_format($m['rsi14'],1):'—'?></td><td><?=is_numeric($f)?number_format($f,2):'—'?></td><td><?=is_numeric($lo)&&is_numeric($hi)?number_format($lo,2).' – '.number_format($hi,2):'—'?></td></tr>
