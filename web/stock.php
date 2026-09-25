@@ -1,6 +1,6 @@
 <?php
 require __DIR__.'/partials/header.php';
-$symbol=strtoupper(trim($_GET['symbol']??'AAPL'));$stock=[];$prices=[];
+$symbol=strtoupper(trim($_GET['symbol']??'AAPL'));$stock=[];$prices=[];$metrics=[];
 try{$stock=q('SELECT * FROM stocks WHERE symbol=?',[$symbol])->fetch()?:[];$prices=q('SELECT ts,close,volume FROM prices WHERE symbol=? ORDER BY ts DESC LIMIT 250',[$symbol])->fetchAll();$prices=array_reverse($prices);}catch(Throwable $x){}
 if(!$stock||!$prices){
   $cache=json_decode(@file_get_contents(__DIR__.'/data/market.json'),true)?:[];
@@ -9,9 +9,11 @@ if(!$stock||!$prices){
   usort($prices,fn($a,$b)=>strcmp($a['ts'],$b['ts']));
   $prices=array_slice($prices,-250);
 }
+$cache=json_decode(@file_get_contents(__DIR__.'/data/market.json'),true)?:[];
+$metrics=$cache['analysis'][$symbol]??[];
 ?>
 <section class="section-head"><div><span class="eyebrow">STOCK RESEARCH</span><h1><?=e($symbol)?></h1><p><?=e($stock['name']??'No fundamentals imported yet')?></p></div><a class="secondary" href="watchlist.php?add=<?=urlencode($symbol)?>">Add to watchlist</a></section>
 <div class="grid four"><div class="card"><small>Last price</small><strong><?=e(end($prices)['close']??'—')?></strong></div><div class="card"><small>Market cap</small><strong><?=e($stock['market_cap']??'—')?></strong></div><div class="card"><small>P/E</small><strong><?=e($stock['pe']??'—')?></strong></div><div class="card"><small>Beta</small><strong><?=e($stock['beta']??'—')?></strong></div></div>
 <article class="card chart-card"><div class="card-title"><b>Price history</b><span>Cached observations</span></div><canvas id="priceChart"></canvas></article>
-<div class="grid two"><article class="card"><h3>Fundamentals</h3><dl><dt>Revenue growth</dt><dd><?=e($stock['revenue_growth']??'—')?></dd><dt>EPS growth</dt><dd><?=e($stock['eps_growth']??'—')?></dd><dt>EPS</dt><dd><?=e($stock['eps']??'—')?></dd><dt>Dividend yield</dt><dd><?=e($stock['dividend_yield']??'—')?></dd></dl></article><article class="card"><h3>Research notes</h3><p>Use the historical series and reported fundamentals to investigate a company. Quantix does not provide personalized financial advice.</p></article></div>
+<div class="grid three"><article class="card"><h3>Quant metrics</h3><dl><dt>20D return</dt><dd><?=isset($metrics['return_20d'])?number_format($metrics['return_20d']*100,1).'%':'—'?></dd><dt>Annualized volatility</dt><dd><?=isset($metrics['annualized_volatility'])?number_format($metrics['annualized_volatility']*100,1).'%':'—'?></dd><dt>Max drawdown</dt><dd><?=isset($metrics['max_drawdown'])?number_format($metrics['max_drawdown']*100,1).'%':'—'?></dd><dt>RSI(14)</dt><dd><?=isset($metrics['rsi14'])?number_format($metrics['rsi14'],1):'—'?></dd><dt>Sharpe</dt><dd><?=isset($metrics['sharpe'])?number_format($metrics['sharpe'],2):'—'?></dd></dl></article><article class="card"><h3>Forecast model</h3><dl><dt>Trend</dt><dd><?=e($metrics['trend']??'—')?></dd><dt>5D estimate</dt><dd><?=isset($metrics['forecast_5d'])?number_format($metrics['forecast_5d'],2):'—'?></dd><dt>20D estimate</dt><dd><?=isset($metrics['forecast_20d'])?number_format($metrics['forecast_20d'],2):'—'?></dd><dt>20D interval</dt><dd><?=isset($metrics['forecast_20d_low'], $metrics['forecast_20d_high'])?number_format($metrics['forecast_20d_low'],2).' – '.number_format($metrics['forecast_20d_high'],2):'—'?></dd></dl><p class="muted">Statistical estimate from recent log-price trend; not a guarantee.</p></article><article class="card"><h3>Fundamentals</h3><dl><dt>Revenue growth</dt><dd><?=e($stock['revenue_growth']??'—')?></dd><dt>EPS growth</dt><dd><?=e($stock['eps_growth']??'—')?></dd><dt>EPS</dt><dd><?=e($stock['eps']??'—')?></dd><dt>Dividend yield</dt><dd><?=e($stock['dividend_yield']??'—')?></dd></dl></article><article class="card"><h3>Research notes</h3><p>Use the historical series and reported fundamentals to investigate a company. Quantix does not provide personalized financial advice.</p></article></div>
 <script>window.QUANTIX_PRICE=<?=json_encode($prices)?>;</script><script src="assets/js/stock.js"></script><?php require __DIR__.'/partials/footer.php'; ?>
