@@ -1,0 +1,23 @@
+name: Deploy Quantix to InfinityFree
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: quantix-infinityfree
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy web via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.INFINITYFREE_FTP_SERVER }}
+          username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
+          password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+          server-dir: ${{ secrets.INFINITYFREE_FTP_SERVER_DIR }}
+          local-dir: ./web/
+          protocol: ftp
+          security: loose
