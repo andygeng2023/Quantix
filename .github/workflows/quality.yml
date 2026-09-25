@@ -1,0 +1,18 @@
+name: Quantix Quality
+on:
+  push:
+    branches: [main, quantix-overhaul-2026-09-25]
+  pull_request:
+    branches: [main]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python syntax
+        run: python -m py_compile collector/fetch_prices.py
+      - name: PHP syntax
+        run: find web -type f -name '*.php' -print0 | xargs -0 -n1 php -l
