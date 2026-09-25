@@ -140,7 +140,7 @@ def backtest_forecast(s, horizon, lookback=60, step=5, max_origins=20):
 def backtest_summary(s):
     return {f'{h}d':backtest_forecast(s,h) for h in (5,20)}
 
-all_stocks=[]; all_prices=[]; series={}
+all_stocks=[]; all_prices=[]; series={}; freshness={}
 try:
     fin=pd.read_csv(FINANCIALS_URL)
     fin['Symbol']=fin['Symbol'].astype(str).str.strip().str.upper().str.replace('.','-',regex=False)
@@ -151,7 +151,7 @@ except Exception as exc:
 
 print(f'Fetching {len(symbols)} symbols in efficient batches')
 price_frames={}
-BATCH_SIZE=40
+BATCH_SIZE=25
 for start in range(0,len(symbols),BATCH_SIZE):
     batch=symbols[start:start+BATCH_SIZE]
     print(f'Batch {start+1}-{start+len(batch)} / {len(symbols)}')
@@ -189,6 +189,8 @@ for sym in symbols:
     prices=[]
     if not h.empty:
         date_col=h.columns[0]
+        for col in ['Open','High','Low','Close','Volume']:
+            if col not in h.columns: h[col]=h['Close'] if 'Close' in h.columns else np.nan
         for _,row in h.iterrows():
             close=row.get('Close')
             if pd.isna(close): continue
@@ -198,6 +200,7 @@ for sym in symbols:
                            'volume':None if pd.isna(row.get('Volume')) else int(row.get('Volume'))})
     if prices:
         all_stocks.extend(stocks); all_prices.extend(prices)
+        freshness[sym]=prices[-1]['ts']
         series[sym]=pd.Series([p['close'] for p in prices],dtype=float)
         print(sym,len(prices),'observations')
 aligned=pd.DataFrame(series).dropna()
