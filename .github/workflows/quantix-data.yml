@@ -1,39 +1,49 @@
-name: Quantix Data Collector
+name: Quantix Data Refresh
+run-name: Quantix market refresh
 on:
   workflow_dispatch:
   schedule:
-    - cron: '2-59/5 * * * *'
+    - cron: '7,22,37,52 * * * *'
 permissions:
-  contents: write
+  contents: read
 jobs:
-  collect:
+  refresh:
     runs-on: ubuntu-latest
-    concurrency:
-      group: quantix-data-collector
-      cancel-in-progress: true
     timeout-minutes: 12
+    concurrency:
+      group: quantix-data-refresh
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install -r collector/requirements.txt requests
-      - name: Fetch yfinance data
+          cache: pip
+          cache-dependency-path: collector/requirements.txt
+      - name: Install collector
+        run: pip install -r collector/requirements.txt requests
+      - name: Generate market cache
         env:
           QUANTIX_SYMBOLS: ${{ vars.QUANTIX_SYMBOLS }}
         run: python collector/fetch_prices.py
-      - name: Verify generated cache
+      - name: Validate cache
         run: |
-          python -c "import json; d=json.load(open('web/data/market.json')); assert len(d.get('stocks',[])) >= 400, f\"Universe unexpectedly small: {len(d.get('stocks',[]))}\"; assert len(d.get('analysis',{})) >= 400, f\"Analysis unexpectedly small: {len(d.get('analysis',{}))}\"; print('Verified',len(d['stocks']),'stocks and',len(d['analysis']),'analyses')"
-      - name: Publish static market cache
-        run: |
-          git config user.name "Quantix Data Bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add web/data/market.json
-          git diff --cached --quiet || git commit -m "Update Quantix market cache"
-          git push
-
-      - name: Deploy market cache directly to InfinityFree
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('web/data/market.json').read_text())
+          stocks=d.get('stocks',[])
+          analysis=d.get('analysis',{})
+          prices=d.get('prices',[])
+          assert len(stocks) >= 400, f"Universe unexpectedly small: {len(stocks)}"
+          assert len(analysis) >= 400, f"Analysis unexpectedly small: {len(analysis)}"
+          assert len(prices) >= 100000, f"Price history unexpectedly small: {len(prices)}"
+          assert d.get('generated_at'), "Missing generated_at"
+          print(f"Validated {len(stocks)} stocks, {len(analysis)} analyses and {len(prices)} price rows")
+          PY
+      - name: Deploy cache to InfinityFree
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.INFINITYFREE_FTP_SERVER }}
