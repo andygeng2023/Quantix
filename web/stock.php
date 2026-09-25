@@ -23,7 +23,7 @@ $cache=json_decode(@file_get_contents(__DIR__.'/data/market.json'),true)?:[];
 $metrics=$cache['analysis'][$symbol]??[];
 if(!$prices){[$remoteStock,$remotePrices]=quantix_remote_quote($symbol);if($remotePrices){$prices=$remotePrices;$stock=array_merge($stock,$remoteStock);}}
 if(!$metrics && $prices){$metrics=quantix_series_metrics($prices);}
-$liveMode=!isset($cache['analysis'][$symbol]) && !empty($prices);
+$liveMode=!empty($prices);
 ?>
 <section class="section-head"><div><span class="eyebrow">STOCK RESEARCH</span><h1><?=e($symbol)?></h1><p><?=e($stock['name']??'No fundamentals imported yet')?></p></div><a class="secondary" href="watchlist.php?add=<?=urlencode($symbol)?>">Add to watchlist</a></section>
 <div class="grid four"><div class="card"><small>Last price</small><strong><?=e(end($prices)['close']??'—')?></strong></div><div class="card"><small>Market cap</small><strong><?=e($stock['market_cap']??'—')?></strong></div><div class="card"><small>P/E</small><strong><?=e($stock['pe']??'—')?></strong></div><div class="card"><small>Beta</small><strong><?=e($stock['beta']??'—')?></strong></div></div>
