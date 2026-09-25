@@ -121,8 +121,22 @@ except Exception as exc:
     print('Financial dataset download failed:',exc)
     fin_by_symbol={}
 
-print(f'Fetching {len(symbols)} symbols in batched price downloads')
-price_data=yf.download(' '.join(symbols),period='1y',interval='1d',auto_adjust=False,group_by='ticker',threads=True,progress=False)
+print(f'Fetching {len(symbols)} symbols in efficient batches')
+price_frames={}
+BATCH_SIZE=100
+for start in range(0,len(symbols),BATCH_SIZE):
+    batch=symbols[start:start+BATCH_SIZE]
+    print(f'Batch {start+1}-{start+len(batch)} / {len(symbols)}')
+    try:
+        frame=yf.download(' '.join(batch),period='1y',interval='1d',auto_adjust=False,group_by='ticker',threads=True,progress=False,timeout=30)
+        for sym in batch:
+            try:
+                price_frames[sym]=frame[sym].dropna(how='all').reset_index()
+            except Exception:
+                price_frames[sym]=pd.DataFrame()
+    except Exception as exc:
+        print('Batch failed:',exc)
+        for sym in batch: price_frames[sym]=pd.DataFrame()
 for sym in symbols:
     info=fin_by_symbol.get(sym,{})
     stocks=[{'symbol':sym,'name':None if pd.isna(info.get('Name')) else info.get('Name'),
@@ -133,10 +147,7 @@ for sym in symbols:
              'price_to_sales':safe_float(info.get('Price/Sales')),'price_to_book':safe_float(info.get('Price/Book')),
              '52_week_low':safe_float(info.get('52 Week Low')),'52_week_high':safe_float(info.get('52 Week High')),
              'updated_at':dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}]
-    try:
-        h=price_data[sym].dropna(how='all').reset_index()
-    except Exception:
-        h=pd.DataFrame()
+    h=price_frames.get(sym,pd.DataFrame())
     prices=[]
     if not h.empty:
         date_col=h.columns[0]
