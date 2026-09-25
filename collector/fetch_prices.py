@@ -57,8 +57,13 @@ def metrics(prices, benchmark):
         future=float(np.exp(intercept+slope*(n-1+days)))
         lo=float(np.exp(intercept+slope*(n-1+days)-1.96*sigma*np.sqrt(1+days/n)))
         hi=float(np.exp(intercept+slope*(n-1+days)+1.96*sigma*np.sqrt(1+days/n)))
-        return future,lo,hi,slope*252
-    f5,l5,h5,t5=forecast(5); f20,l20,h20,t20=forecast(20)
+        path=[]
+        for d in range(1,days+1):
+            val=float(np.exp(intercept+slope*(n-1+d)))
+            band=float(1.96*sigma*np.sqrt(1+d/n))
+            path.append({'day':d,'value':val,'low':float(np.exp(intercept+slope*(n-1+d)-band)),'high':float(np.exp(intercept+slope*(n-1+d)+band))})
+        return future,lo,hi,slope*252,path
+    f5,l5,h5,t5,p5=forecast(5); f20,l20,h20,t20,p20=forecast(20)
     last=float(s.iloc[-1])
     trend='bullish' if last>sma20 and sma20>(sma50 if np.isfinite(sma50) else sma20) and t20>0 else ('bearish' if last<sma20 and np.isfinite(sma50) and sma20<sma50 and t20<0 else 'mixed')
     return {
@@ -70,7 +75,7 @@ def metrics(prices, benchmark):
         'macd_signal':safe_float(signal.iloc[-1]),'trend':trend,
         'forecast_5d':safe_float(f5),'forecast_5d_low':safe_float(l5),'forecast_5d_high':safe_float(h5),
         'forecast_20d':safe_float(f20),'forecast_20d_low':safe_float(l20),'forecast_20d_high':safe_float(h20),
-        'forecast_annualized_trend':safe_float(t20)
+        'forecast_annualized_trend':safe_float(t20),'forecast_path_20d':p20
     }
 
 all_stocks=[]; all_prices=[]; series={}
