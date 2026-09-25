@@ -142,6 +142,22 @@ def backtest_summary(s):
     return {f'{h}d':backtest_forecast(s,h) for h in (5,20)}
 
 all_stocks=[]; all_prices=[]; series={}; freshness={}
+# Stale-while-revalidate: keep the last validated cache and replace only symbols
+# successfully refreshed during this run. A partial Yahoo failure therefore never
+# destroys otherwise healthy market data.
+cache_path=ROOT/'web'/'data'/'market.json'
+previous={}
+try:
+    if cache_path.is_file():
+        previous=json.loads(cache_path.read_text())
+except Exception as exc:
+    print('Previous cache unavailable; starting fresh:',exc)
+previous_stocks={x.get('symbol'):x for x in previous.get('stocks',[]) if x.get('symbol')}
+previous_prices={}
+for row in previous.get('prices',[]):
+    previous_prices.setdefault(row.get('symbol'),[]).append(row)
+previous_analysis=previous.get('analysis',{}) if isinstance(previous.get('analysis',{}),dict) else {}
+
 try:
     fin=pd.read_csv(FINANCIALS_URL)
     fin['Symbol']=fin['Symbol'].astype(str).str.strip().str.upper().str.replace('.','-',regex=False)
@@ -235,9 +251,23 @@ for sym, ser in series.items():
     analyses[sym]['data_quality']={'observations':int(len(series[sym])),'freshness':str(max((p['ts'] for p in all_prices if p['symbol']==sym),default=None))}
     print('analysis',sym,analyses[sym].get('trend'),analyses[sym].get('forecast_20d'),analyses[sym].get('backtest',{}))
 
-cache=ROOT/'web'/'data'/'market.json';cache.parent.mkdir(parents=True,exist_ok=True)
-valid_symbols=sum(1 for sym in symbols if len(series.get(sym,[])) >= 30)
-if len(all_stocks) < 400 or len(analyses) < 400 or valid_symbols < 400:
-    raise RuntimeError(f'Collector produced an unsafe cache: {len(all_stocks)} stocks / {len(analyses)} analyses / {valid_symbols} valid price series')
-cache.write_text(json.dumps({'generated_at':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z'),'stocks':all_stocks,'prices':all_prices,'analysis':analyses},separators=(',',':')))
-print(f'Wrote static market cache: {cache} ({len(all_stocks)} stocks, {len(all_prices)} prices, {len(analyses)} analyses)')
+cache=cache_path;cache.parent.mkdir(parents=True,exist_ok=True)
+# Merge fresh symbols over the previous validated snapshot.
+stock_map=dict(previous_stocks)
+for row in all_stocks: stock_map[row['symbol']]=row
+price_map=dict(previous_prices)
+for sym in series:
+    if len(series.get(sym,[])) >= 30:
+        price_map[sym]=[p for p in all_prices if p['symbol']==sym]
+analysis_map=dict(previous_analysis)
+for sym,m in analyses.items():
+    if m: analysis_map[sym]=m
+merged_stocks=list(stock_map.values())
+merged_prices=[p for rows in price_map.values() for p in rows]
+merged_analysis=analysis_map
+valid_symbols=sum(1 for sym in symbols if len(series.get(sym,[])) >= 30 or len(previous_prices.get(sym,[])) >= 30)
+if len(merged_stocks) < 1 or len(merged_analysis) < 1:
+    raise RuntimeError(f'No usable market cache exists after refresh: {len(merged_stocks)} stocks / {len(merged_analysis)} analyses')
+payload={'generated_at':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z'),'stocks':merged_stocks,'prices':merged_prices,'analysis':merged_analysis,'refresh':{'fresh_symbols':len(series),'valid_symbols_this_run':valid_symbols,'total_symbols':len(merged_stocks)}}
+tmp=cache.with_suffix('.json.tmp');tmp.write_text(json.dumps(payload,separators=(',',':')));tmp.replace(cache)
+print(f'Wrote stale-while-revalidate cache: {cache} ({len(merged_stocks)} stocks, {len(merged_prices)} prices, {len(merged_analysis)} analyses; refreshed {len(series)})')
