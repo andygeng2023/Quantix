@@ -1,6 +1,7 @@
 const el=document.getElementById('priceChart');
 if(el&&window.QUANTIX_PRICE){
- new Chart(el,{type:'line',data:{labels:QUANTIX_PRICE.map(x=>x.ts),datasets:[{label:'Close',data:QUANTIX_PRICE.map(x=>Number(x.close)),tension:.2,pointRadius:0,borderWidth:2}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{display:false}}}});
+ const range=Number(window.QUANTIX_SETTINGS?.range||250); const prices=window.QUANTIX_PRICE.slice(-range);
+ new Chart(el,{type:'line',data:{labels:prices.map(x=>x.ts),datasets:[{label:'Close',data:prices.map(x=>Number(x.close)),tension:.2,pointRadius:0,borderWidth:2}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{display:false}}}});
 }
 const fc=document.getElementById('forecastChart');
 if(fc&&window.QUANTIX_PRICE&&window.QUANTIX_FORECAST){
