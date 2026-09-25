@@ -42,6 +42,13 @@ def metrics(prices, benchmark):
     r60=s.pct_change(60).iloc[-1] if len(s)>60 else np.nan
     sma20=s.rolling(20).mean().iloc[-1]
     sma50=s.rolling(50).mean().iloc[-1] if len(s)>=50 else np.nan
+    mid20=s.rolling(20).mean(); std20=s.rolling(20).std(ddof=1); upper20=mid20+2*std20; lower20=mid20-2*std20
+    tr=pd.concat([prices['high'].astype(float)-prices['low'].astype(float),(prices['high'].astype(float)-prices['close'].astype(float).shift()).abs(),(prices['low'].astype(float)-prices['close'].astype(float).shift()).abs()],axis=1).max(axis=1)
+    atr14=tr.rolling(14).mean().iloc[-1] if len(tr)>=14 else np.nan
+    k14=100*(s-s.rolling(14).min())/(s.rolling(14).max()-s.rolling(14).min()).replace(0,np.nan)
+    vol20=ret.tail(20).std(ddof=1)*np.sqrt(252) if len(ret)>=20 else np.nan
+    vol60=ret.tail(60).std(ddof=1)*np.sqrt(252) if len(ret)>=60 else np.nan
+    vol_regime='high' if np.isfinite(vol20) and np.isfinite(vol60) and vol20>vol60*1.25 else ('low' if np.isfinite(vol20) and np.isfinite(vol60) and vol20<vol60*0.8 else 'normal')
     ema12=s.ewm(span=12,adjust=False).mean()
     ema26=s.ewm(span=26,adjust=False).mean()
     macd=ema12-ema26
@@ -74,6 +81,23 @@ def metrics(prices, benchmark):
             path.append({'day':d,'value':val,'low':float(np.exp(intercept+slope*(n-1+d)-band)),'high':float(np.exp(intercept+slope*(n-1+d)+band))})
         return future,lo,hi,slope*252,path
     f5,l5,h5,t5,p5=forecast(5); f20,l20,h20,t20,p20=forecast(20)
+    # Ensemble the short and medium log-price trends. The lower-weight model is
+    # selected by inverse residual variance, which reduces sensitivity to one window.
+    def ensemble(days):
+        candidates=[]
+        for window in (20,60):
+            n=min(window,len(s)); y=np.log(s.tail(n).values); x=np.arange(n,dtype=float)
+            slope,intercept=np.polyfit(x,y,1); resid=y-(intercept+slope*x)
+            sigma=max(float(np.std(resid,ddof=1)) if n>2 else 0.0,1e-6)
+            pred=float(np.exp(intercept+slope*(n-1+days))); candidates.append((pred,slope,sigma,n))
+        weights=np.array([1/(z[2]**2) for z in candidates]); weights=weights/weights.sum()
+        pred=float(sum(w*z[0] for w,z in zip(weights,candidates))); slope=float(sum(w*z[1] for w,z in zip(weights,candidates)))
+        sigma=float(np.sqrt(sum(w*(z[2]**2+(z[0]-pred)**2)/(1+days/z[3]) for w,z in zip(weights,candidates))))
+        band=1.96*sigma*np.sqrt(1+days/60); return pred,float(np.exp(np.log(pred)-band)),float(np.exp(np.log(pred)+band)),slope*252
+    f5,l5,h5,t5=ensemble(5); f20,l20,h20,t20=ensemble(20)
+    path=[]
+    for d in range(1,21):
+        v,lo,hi,_=ensemble(d); path.append({'day':d,'value':v,'low':lo,'high':hi})
     last=float(s.iloc[-1])
     trend='bullish' if last>sma20 and sma20>(sma50 if np.isfinite(sma50) else sma20) and t20>0 else ('bearish' if last<sma20 and np.isfinite(sma50) and sma20<sma50 and t20<0 else 'mixed')
     return {
@@ -82,7 +106,7 @@ def metrics(prices, benchmark):
         'max_drawdown':safe_float(dd.min()),'sharpe':safe_float(sharpe),'sortino':safe_float(sortino),
         'beta':safe_float(beta),'sma20':safe_float(sma20),'sma50':safe_float(sma50),
         'rsi14':safe_float(rsi.iloc[-1]),'macd':safe_float(macd.iloc[-1]),
-        'macd_signal':safe_float(signal.iloc[-1]),'trend':trend,
+        'macd_signal':safe_float(signal.iloc[-1]),'trend':trend,'bollinger_upper':safe_float(upper20.iloc[-1]),'bollinger_lower':safe_float(lower20.iloc[-1]),'atr14':safe_float(atr14),'stochastic14':safe_float(k14.iloc[-1]),'volatility_regime':vol_regime,
         'forecast_5d':safe_float(f5),'forecast_5d_low':safe_float(l5),'forecast_5d_high':safe_float(h5),
         'forecast_20d':safe_float(f20),'forecast_20d_low':safe_float(l20),'forecast_20d_high':safe_float(h20),
         'forecast_annualized_trend':safe_float(t20),'forecast_path_20d':p20
