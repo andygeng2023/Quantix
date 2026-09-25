@@ -2,7 +2,7 @@
 require __DIR__.'/partials/header.php';
 $analysis=quantix_analysis();
 function avg_metric($rows,$key){$v=[];foreach($rows as $r)if(isset($r[$key])&&is_numeric($r[$key]))$v[]=(float)$r[$key];return $v?array_sum($v)/count($v):null;}
-$all5=[];$all20=[];foreach($analysis as $m){if(!empty($m['backtest']['5d']))$all5[]=$m['backtest']['5d'];if(!empty($m['backtest']['20d']))$all20[]=$m['backtest']['20d']);}
+$all5=[];$all20=[];foreach($analysis as $m){if(!empty($m['backtest']['5d']))$all5[]=$m['backtest']['5d'];if(!empty($m['backtest']['20d']))$all20[]=$m['backtest']['20d'];}
 $bt5=['directional_accuracy'=>avg_metric($all5,'directional_accuracy'),'interval_coverage'=>avg_metric($all5,'interval_coverage'),'mae'=>avg_metric($all5,'mae'),'rmse'=>avg_metric($all5,'rmse')];
 $bt20=['directional_accuracy'=>avg_metric($all20,'directional_accuracy'),'interval_coverage'=>avg_metric($all20,'interval_coverage'),'mae'=>avg_metric($all20,'mae'),'rmse'=>avg_metric($all20,'rmse')];
 $conf=[];foreach($analysis as $m)if(is_numeric($m['model_confidence']??null))$conf[]=$m['model_confidence'];$avgConf=$conf?array_sum($conf)/count($conf):null;
