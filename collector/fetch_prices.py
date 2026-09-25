@@ -23,35 +23,9 @@ for sym in symbols:
     payload={'generated_at':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z'),'stocks':stocks,'prices':prices}
     all_stocks.extend(stocks)
     all_prices.extend(prices)
-    if ingest_url and ingest_token:
-        last_error=None
-        for attempt in range(1,4):
-            try:
-                r=requests.post(
-                    ingest_url,
-                    headers={
-                        'X-Quantix-Token':ingest_token,
-                        'User-Agent':'Quantix-Data-Collector/1.0',
-                        'Accept':'application/json',
-                    },
-                    json=payload,
-                    timeout=(15,90),
-                )
-                print(f'{sym}: HTTP {r.status_code} {r.text[:500]}')
-                r.raise_for_status()
-                last_error=None
-                break
-            except requests.RequestException as exc:
-                last_error=exc
-                print(f'{sym}: ingest attempt {attempt}/3 failed: {type(exc).__name__}: {exc}')
-                if attempt < 3:
-                    time.sleep(5 * attempt)
-        if last_error:
-            raise last_error
-    else:
-        path=out/f'quantix-{sym}-{dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H%M%S")}.json'
-        path.write_text(json.dumps(payload,separators=(',',':')))
-        print(path)
+    path=out/f'quantix-{sym}-{dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H%M%S")}.json'
+    path.write_text(json.dumps(payload,separators=(',',':')))
+    print(path)
 
 cache=Path('web/data/market.json')
 cache.parent.mkdir(parents=True,exist_ok=True)
